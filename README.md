@@ -60,3 +60,76 @@ The library currently only supports reading data. It is a goal to be able to tak
                        b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
                        b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'}
 ```
+
+```
+integer_val = 14768
+
+arr = (
+    bytes(range(154))
+    + integer_val.to_bytes(4, "little")
+    + struct.pack("<f", 45.23)
+    + struct.pack("<d", 45.23)
+    + bytes(range(10))
+)
+
+arr = arr + arr + b"\0\0\0"
+
+record_format = fb.Chunk(
+    fb.Byte("byte_0"),
+    fb.Byte("byte_100", 100),
+    fb.Byte("byte_150", 150),
+    fb.Bytes(3)("bytes_151"),
+    fb.Int32sl("int_154"),
+    fb.Float32l("float_158"),
+    fb.Float64l("float_158"),
+    fb.PadToAddress(180),
+    relative=True,
+)
+
+overall_format = fb.Chunk(record_format("First_chunk"),
+             record_format("Second_chunk"),
+             fb.Remnant())
+
+pp.pprint(overall_format.parse(arr))
+```
+{   'First_chunk': {   'byte_0': b'\x00',
+                       'byte_100': b'd',
+                       'byte_150': b'\x96',
+                       'bytes_151': b'\x97\x98\x99',
+                       'float_158': 45.22999954223633,
+                       'float_158 1': 45.23,
+                       'int_154': 14768,
+                       'spacer_0x1-0x63': b'\x01\x02\x03\x04\x05\x06\x07\x08'
+                                          b'\t\n\x0b\x0c\r\x0e\x0f\x10'
+                                          b'\x11\x12\x13\x14\x15\x16\x17\x18'
+                                          b'\x19\x1a\x1b\x1c\x1d\x1e\x1f !"#$'
+                                          b"%&'()*+,-./0123456789:;<=>?@ABCD"
+                                          b'EFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abc',
+                       'spacer_0x65-0x95': b'efghijklmnopqrstuvwxyz{|}~\x7f\x80'
+                                           b'\x81\x82\x83\x84\x85\x86\x87\x88'
+                                           b'\x89\x8a\x8b\x8c\x8d\x8e\x8f\x90'
+                                           b'\x91\x92\x93\x94\x95',
+                       'spacer_0xaa-0xb3': b'\x00\x01\x02\x03\x04\x05\x06\x07'
+                                           b'\x08\t'},
+    'Second_chunk': {   'byte_0': b'\x00',
+                        'byte_100': b'd',
+                        'byte_150': b'\x96',
+                        'bytes_151': b'\x97\x98\x99',
+                        'float_158': 45.22999954223633,
+                        'float_158 1': 45.23,
+                        'int_154': 14768,
+                        'spacer_0x1-0x63': b'\x01\x02\x03\x04\x05\x06\x07\x08'
+                                           b'\t\n\x0b\x0c\r\x0e\x0f\x10'
+                                           b'\x11\x12\x13\x14\x15\x16\x17\x18'
+                                           b'\x19\x1a\x1b\x1c\x1d\x1e\x1f !"#$'
+                                           b"%&'()*+,-./0123456789:;<=>?@ABCD"
+                                           b'EFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abc',
+                        'spacer_0x65-0x95': b'efghijklmnopqrstuvwxyz{|'
+                                            b'}~\x7f\x80\x81\x82\x83\x84'
+                                            b'\x85\x86\x87\x88\x89\x8a\x8b\x8c'
+                                            b'\x8d\x8e\x8f\x90\x91\x92\x93\x94'
+                                            b'\x95',
+                        'spacer_0xaa-0xb3': b'\x00\x01\x02\x03\x04\x05\x06\x07'
+                                            b'\x08\t'},
+    'remnant_0x168': b'\x00\x00\x00'}
+```
