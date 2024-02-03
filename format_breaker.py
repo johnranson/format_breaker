@@ -381,7 +381,7 @@ class Float32l(Bytes):
         super().__init__(4, name, address, copy_source)
 
     def _decode(self, data):
-        return struct.unpack("<f", super()._decode(data))
+        return struct.unpack("<f", super()._decode(data))[0]
 
 
 class Float64l(Bytes):
@@ -391,6 +391,6 @@ class Float64l(Bytes):
         super().__init__(8, name, address, copy_source)
 
     def _decode(self, data):
-        return struct.unpack("<d", super()._decode(data))
+        return struct.unpack("<d", super()._decode(data))[0]
 
 

@@ -31,14 +31,14 @@ The library currently only supports reading data. It is a goal to be able to tak
 >>>dat = struct.pack("<d", 45.23)
 >>>pp.pprint(fb.Float64l("fnum").parse(dat))
 
-{'fnum': (45.23,)}
+{'fnum': 45.23}
 ```
 ```
 >>>dat = struct.pack("<d", 45.23) + struct.pack("<d", 21.23)
 >>>fmt = fb.Chunk(fb.Float64l("fnum1"), fb.Float64l("fnum2"))
 >>>pp.pprint(fmt.parse(dat))
 
-{'fnum1': (45.23,), 'fnum2': (21.23,)}
+{'fnum1': 45.23, 'fnum2': 21.23}
 ```
 
 
@@ -47,8 +47,8 @@ The library currently only supports reading data. It is a goal to be able to tak
 >>>fmt = fb.Chunk(fb.Float64l("fnum1"), fb.Float64l("fnum2",128))
 >>>pp.pprint(fmt.parse(dat))
 
-{   'fnum1': (45.23,),
-    'fnum2': (21.23,),
+{   'fnum1': 45.23,
+    'fnum2': 21.23,
     'spacer_0x8-0x7f': b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
                        b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
                        b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
