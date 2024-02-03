@@ -14,10 +14,14 @@ fmt = fb.Chunk(fb.Float64l("fnum1"), fb.Float64l("fnum2"))
 pp.pprint(fmt.parse(dat))
 
 
-dat = struct.pack("<d", 45.23) + b'\0' * 120 + struct.pack("<d", 21.23)
-fmt = fb.Chunk(fb.Float64l("fnum1"), fb.Float64l("fnum2",128))
+dat = struct.pack("<d", 45.23) + b"\0" * 120 + struct.pack("<d", 21.23)
+fmt = fb.Chunk(fb.Float64l("fnum1"), fb.Float64l("fnum2", 128))
 pp.pprint(fmt.parse(dat))
 
+
+dat = bytes([5, 1, 2, 3, 4, 5])
+fmt = fb.Chunk(fb.Int8sl("length"), fb.VarBytes("bytes", length_key="length"))
+pp.pprint(fmt.parse(dat))
 
 # integer_val = 14768
 

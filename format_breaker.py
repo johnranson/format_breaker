@@ -287,10 +287,10 @@ class Byte(DataType):
         end_rel_addr = rel_addr + 1
 
         if self.name:
-            self._store(context, data[abs_addr])
+            self._store(context, data[abs_addr:end_abs_addr])
         else:
             byte_name = "byte_" + hex(rel_addr)
-            self._store(context, data[abs_addr], byte_name)
+            self._store(context, data[abs_addr:end_rel_addr], byte_name)
 
         return end_abs_addr, end_rel_addr
 
@@ -314,6 +314,36 @@ class Bytes(DataType):
 
         end_abs_addr = abs_addr + self.length
         end_rel_addr = rel_addr + self.length
+
+        if self.name:
+            self._store(context, data[abs_addr:end_abs_addr])
+        else:
+            bytes_name = "bytes_" + hex(rel_addr)
+            self._store(context, data[abs_addr:end_abs_addr], bytes_name)
+
+        return end_abs_addr, end_rel_addr
+
+
+class VarBytes(DataType):
+    """Reads a number of bytes from the data based on another field"""
+
+    def __init__(
+        self, name=None, address=None, length_key=None, copy_source=None
+    ) -> None:
+        if copy_source:
+            self.lengh_key = copy_source.length_key
+        if length_key:
+            self.length_key = length_key
+        super().__init__(name, address, copy_source)
+
+    def _parse(self, data, context, abs_addr, rel_addr):
+
+        length = context[self.length_key]
+
+        assert len(data) > abs_addr + length - 1
+
+        end_abs_addr = abs_addr + length
+        end_rel_addr = rel_addr + length
 
         if self.name:
             self._store(context, data[abs_addr:end_abs_addr])
