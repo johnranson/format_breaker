@@ -394,38 +394,3 @@ class Float64l(Bytes):
         return struct.unpack("<d", super()._decode(data))
 
 
-# Everything past here is just test code
-
-import pprint
-
-pp = pprint.PrettyPrinter(indent=4)
-
-integer_val = 14768
-
-arr = (
-    bytes(range(154))
-    + integer_val.to_bytes(4, "little")
-    + struct.pack("<f", 45.23)
-    + struct.pack("<d", 45.23)
-    + bytes(range(10))
-)
-
-arr = arr + arr + b"\0\0\0"
-
-a = Chunk(
-    Byte("byte_0"),
-    Byte("byte_100", 100),
-    Byte("byte_150", 150),
-    Bytes(3)("bytes_151"),
-    Int32sl("int_154"),
-    Float32l("float_158"),
-    Float64l("float_158"),
-    PadToAddress(180),
-    relative=True,
-)
-
-b = Chunk(a, a("Second_chunk"), Remnant())
-
-# Note first chunk is unnamed and stores directly in containing context
-
-pp.pprint(b.parse(arr))
