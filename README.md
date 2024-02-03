@@ -92,6 +92,7 @@ overall_format = fb.Chunk(record_format("First_chunk"),
 
 pp.pprint(overall_format.parse(arr))
 ```
+```
 {   'First_chunk': {   'byte_0': b'\x00',
                        'byte_100': b'd',
                        'byte_150': b'\x96',
