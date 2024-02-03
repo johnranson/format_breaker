@@ -47,8 +47,10 @@ record_format = fb.Chunk(
     relative=True,
 )
 
-overall_format = fb.Chunk(record_format("First_chunk"),
-             record_format("Second_chunk"),
-             fb.Remnant())
+overall_format = fb.Chunk(
+    record_format("First_chunk"),
+    record_format("Second_chunk"),
+    fb.Remnant()
+    )
 
 pp.pprint(overall_format.parse(arr))
