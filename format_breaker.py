@@ -1,5 +1,3 @@
-Copyright 2024 by John Ranson. All rights reserved.
-
 from abc import ABC, abstractmethod
 import struct
 
