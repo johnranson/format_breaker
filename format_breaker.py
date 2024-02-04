@@ -3,12 +3,12 @@ import struct
 
 
 def uniquify_name(name, context):
-    """This adds _N to a string key if the key already exists in the
+    """This adds " N" to a string key if the key already exists in the
         dictionary, where N is the first natural number that makes the
         key unique
 
     Args:
-        name (string): A string key to be made unique
+        name (string): A string
         context (dictionary): Any dictionary
 
     Returns:
@@ -23,7 +23,7 @@ def uniquify_name(name, context):
 
 
 def spacer(data, context, abs_addr, rel_addr, spacer_size):
-    """Given data bytes, it reads a spacer of a certain length, and saves it
+    """Reads a spacer of a certain length from the data, and saves it
         to the context dictionary
 
     Args:
@@ -55,10 +55,10 @@ def spacer(data, context, abs_addr, rel_addr, spacer_size):
 
 
 class DataType(ABC):
-    """This is the base class for all objects that parse the data array."""
+    """This is the base class for all objects that parse data"""
 
     def __init__(self, name=None, address=None, copy_source=None) -> None:
-        """Basic code stroring the name and address
+        """Basic code storing the name and address
 
         Args:
             name (string, optional): The key under which to store results in
@@ -204,7 +204,7 @@ class DataType(ABC):
 
 
 class Chunk(DataType):
-    """A container that holds other objects"""
+    """A container that holds ordered data fields and provides a mechanism for parsing them in order"""
 
     def __init__(
         self, *args, relative=None, name=None, address=None, copy_source=None
@@ -231,14 +231,14 @@ class Chunk(DataType):
         self.args = []
         if copy_source:
             self.relative = copy_source.relative
-            self.data_list = copy_source.data_list
+            self.elements = copy_source.elements
         if relative is not None:
             self.relative = relative
         if args:
             self.data_list = []
             for item in args:
                 if isinstance(item, DataType):
-                    self.data_list.append(item)
+                    self.elements.append(item)
                 else:
                     raise ValueError
         super().__init__(name, address, copy_source)
@@ -263,8 +263,8 @@ class Chunk(DataType):
         if self.relative:
             rel_addr = 0
         out_context = {}
-        for item in self.data_list:
-            abs_addr, rel_addr = item._space_and_parse(
+        for element in self.elements:
+            abs_addr, rel_addr = element._space_and_parse(
                 data, out_context, abs_addr, rel_addr
             )
         chunk_size = abs_addr - orig_abs_addr
@@ -325,7 +325,7 @@ class Bytes(DataType):
 
 
 class VarBytes(DataType):
-    """Reads a number of bytes from the data based on another field"""
+    """Reads a number of bytes from the data with length defined by another field"""
 
     def __init__(
         self, name=None, address=None, length_key=None, copy_source=None
@@ -425,7 +425,7 @@ class Int16ul(Bytes):
 
 
 class Int8sl(Byte):
-    """Reads 1 bytes as a unsigned, little endian integer"""
+    """Reads 1 byte as a signed, little endian integer"""
 
     def __init__(self, name=None, address=None, copy_source=None) -> None:
         super().__init__(name, address, copy_source)
@@ -435,7 +435,7 @@ class Int8sl(Byte):
 
 
 class Int8ul(Byte):
-    """Reads 1 bytes as a unsigned, little endian integer"""
+    """Reads 1 byte as a unsigned, little endian integer"""
 
     def __init__(self, name=None, address=None, copy_source=None) -> None:
         super().__init__(name, address, copy_source)
