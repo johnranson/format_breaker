@@ -2,7 +2,7 @@
 The purpose of this library is to extract data fields from arbitrary binary data
 ## Library Goals
 ### Simple and standard outputs
-The result of parsing data is a standard python dictionary of field names and the parsed values.
+The result of parsing data is a python dictionary of field names and the parsed values.
 ### Human readible declarative syntax
 The library doesn't use format strings to define the data. A byte is a Byte.
 ### Define fields sequentially or by address
@@ -13,10 +13,10 @@ Data between known fields is labeled clearly and stored
 ## Not yet implemented
 ### Reading from streams
 The library currently only supports reading from bytes objects. Long term, it would be convenient to be able to work directly with streams
-### Variable length fields
-The library currently only supports fixed length fields. We plan to add a couple mechanisms for variable length fields.
+### More data types
+The library currently implements a limited number of data types as a proof of concept. More data types are planned.
 ### Writing
-The library currently only supports reading data. It is a goal to be able to take a dictionary and generate binary data.
+The library currently only supports reading data. It is desired to be able to generate packed binary data from a dictionary.
 
 ## Code Examples
 
