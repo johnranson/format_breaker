@@ -1,5 +1,5 @@
 # format_breaker
-The purpose of this library is to extra data fields from arbitrary binary data
+The purpose of this library is to extract data fields from arbitrary binary data
 ## Library Goals
 ### Simple and standard outputs
 The result of parsing data is a standard python dictionary of field names and the parsed values.
