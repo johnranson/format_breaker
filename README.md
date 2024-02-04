@@ -81,7 +81,7 @@ record_format = fb.Chunk(
     fb.Bytes(3)("bytes_151"),
     fb.Int32sl("int_154"),
     fb.Float32l("float_158"),
-    fb.Float64l("float_158"),
+    fb.Float64l("float_166"),
     fb.PadToAddress(180),
     relative=True,
 )
@@ -100,7 +100,7 @@ pp.pprint(overall_format.parse(arr))
                        'byte_150': b'\x96',
                        'bytes_151': b'\x97\x98\x99',
                        'float_158': 45.22999954223633,
-                       'float_158 1': 45.23,
+                       'float_166': 45.23,
                        'int_154': 14768,
                        'spacer_0x1-0x63': b'\x01\x02\x03\x04\x05\x06\x07\x08'
                                           b'\t\n\x0b\x0c\r\x0e\x0f\x10'
@@ -119,7 +119,7 @@ pp.pprint(overall_format.parse(arr))
                         'byte_150': b'\x96',
                         'bytes_151': b'\x97\x98\x99',
                         'float_158': 45.22999954223633,
-                        'float_158 1': 45.23,
+                        'float_166': 45.23,
                         'int_154': 14768,
                         'spacer_0x1-0x63': b'\x01\x02\x03\x04\x05\x06\x07\x08'
                                            b'\t\n\x0b\x0c\r\x0e\x0f\x10'
