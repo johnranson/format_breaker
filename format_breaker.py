@@ -232,14 +232,14 @@ class Chunk(DataType):
             ValueError: one of the elements provided is not a DataType
         """
         self.relative = True
-        self.args = []
+        self.elements = []
         if copy_source:
             self.relative = copy_source.relative
             self.elements = copy_source.elements
         if relative is not None:
             self.relative = relative
         if args:
-            self.data_list = []
+            self.elements = []
             for item in args:
                 if isinstance(item, DataType):
                     self.elements.append(item)

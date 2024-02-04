@@ -42,7 +42,7 @@ record_format = fb.Chunk(
     fb.Bytes(3)("bytes_151"),
     fb.Int32sl("int_154"),
     fb.Float32l("float_158"),
-    fb.Float64l("float_158"),
+    fb.Float64l("float_166"),
     fb.PadToAddress(180),
     relative=True,
 )
