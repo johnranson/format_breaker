@@ -1,6 +1,9 @@
 from abc import ABC, abstractmethod
 import struct
 
+class FBException(Exception):
+    pass
+
 
 def uniquify_name(name, context):
     """This adds " N" to a string key if the key already exists in the
@@ -115,7 +118,8 @@ class DataType(ABC):
             current data chunk after the parsed data
         """
         if self.address:
-            assert rel_addr <= self.address
+            if rel_addr > self.address:
+                raise FBException("Target address has already been passed")
             if rel_addr < self.address:
                 spacer_size = self.address - rel_addr
                 abs_addr, rel_addr = spacer(
@@ -280,8 +284,8 @@ class Byte(DataType):
     """Reads a single byte from the data"""
 
     def _parse(self, data, context, abs_addr, rel_addr):
-        assert len(data) > abs_addr
-        assert self.name
+        if len(data) < abs_addr + 1:
+            raise FBException("No byte available to parse Byte")
 
         end_abs_addr = abs_addr + 1
         end_rel_addr = rel_addr + 1
@@ -310,8 +314,8 @@ class Bytes(DataType):
         super().__init__(name, address, copy_source)
 
     def _parse(self, data, context, abs_addr, rel_addr):
-        assert len(data) > abs_addr + self.length - 1
-
+        if len(data) < abs_addr + self.length:
+            raise FBException("Insufficient bytes available to parse Bytes")
         end_abs_addr = abs_addr + self.length
         end_rel_addr = rel_addr + self.length
 
@@ -339,8 +343,8 @@ class VarBytes(DataType):
     def _parse(self, data, context, abs_addr, rel_addr):
 
         length = context[self.length_key]
-
-        assert len(data) > abs_addr + length - 1
+        if len(data) < abs_addr + length:
+            raise FBException("Insufficient bytes available to parse VarBytes")
 
         end_abs_addr = abs_addr + length
         end_rel_addr = rel_addr + length
