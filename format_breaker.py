@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 import struct
 
+
 class FBException(Exception):
     pass
 
