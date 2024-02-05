@@ -1,1 +1,2 @@
-from core import *
+from formatbreaker.core import *
+from formatbreaker.numbers import *

@@ -1,6 +1,6 @@
 import pprint
 import struct
-import format_breaker as fb
+import formatbreaker as fb
 
 pp = pprint.PrettyPrinter(indent=4)
 
