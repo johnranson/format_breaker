@@ -1,14 +1,15 @@
 """Boolean and bitwise formats"""
 
-from formatbreaker import Byte, FBException, DataType
+from formatbreaker import Byte, FBException
+
 
 class Flag(Byte):
     """Reads 1 byte as a boolean"""
 
     def _decode(self, data):
         return bool(data[0])
-    
-    
+
+
 class LFlag(Byte):
     """Reads 1 byte as a boolean with only one non-zero value allowed"""
 
@@ -19,7 +20,7 @@ class LFlag(Byte):
         if value:
             self.length_key = value
         super().__init__(name, address, copy_source)
-        
+
     def _decode(self, data):
         if not data[0]:
             return False
@@ -27,90 +28,3 @@ class LFlag(Byte):
             return True
         else:
             raise FBException
-        
-class Bit():
-    pass
-
-
-class ConstBit():
-    pass
-
-
-class BitChunk(DataType):
-    """A container that holds ordered bitwise data fields and provides a mechanism for parsing them in order"""
-
-    def __init__(
-        self, *args,name=None, address=None, copy_source=None
-    ) -> None:
-        """Holds any number of DataType elements and parses them in order.
-
-        Args:
-            *args (*DataType): Ordered list of the contained elements
-            name (string, optional): Key where the decoded data is stored.
-                If not defined, decoded parsed data is stored directly in the
-                parsing context
-            address (integer, optional): The address in the data array which
-                this instance should read from. Defaults to None.
-            copy_source (DataType, optional): An existing instance which
-                should be copied
-
-        Raises:
-            ValueError: one of the elements provided is not a DataType
-        """
-        self.elements = []
-        if copy_source:
-            self.elements = copy_source.elements
-        if args:
-            self.elements = []
-            for item in args:
-                if isinstance(item, DataType):
-                    self.elements.append(item)
-                else:
-                    raise ValueError
-        super().__init__(name, address, copy_source)
-
-    def _parse(self, data, context, abs_addr, rel_addr):
-        """Parse the data using each element provided sequentially.
-
-        Args:
-            data (bytes): Data being parsed
-            context (dict): The dictionary where results are stored
-            abs_addr (int): The current absolute byte address in the data
-            rel_addr (int): The current relative byte address in the
-            current data chunk
-
-        Returns:
-            abs_addr (int): The absolute byte address after the parsed data
-            rel_addr (int): The relative byte address in the current data
-                chunk after the parsed data
-        """
-        orig_abs_addr = abs_addr
-        orig_rel_addr = rel_addr
-        rel_bit_addr = 0
-        out_context = {}
-        for element in self.elements:
-            rel_bit_addr = element._space_and_parse(
-                data[abs_addr:], out_context, rel_bit_addr
-            )
-        if rel_bit_addr % 8:
-            chunk_size = rel_bit_addr // 8 + 1
-        else:
-            chunk_size = rel_bit_addr // 8
-        
-        rel_addr = chunk_size + orig_rel_addr
-        abs_addr = chunk_size + orig_abs_addr
-        if self.name:
-            self._store(context, out_context)
-        else:
-            self._update(context, out_context)
-        return abs_addr, rel_addr
-    
-    
-def byteify_bit_addr(bit_addr):
-    return bit_addr // 8, bit_addr % 8
-
-
-class bit(DataType):
-    
-    
-    
