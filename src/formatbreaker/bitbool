@@ -26,5 +26,4 @@ class LFlag(Byte):
             return False
         if data[0] == self.value:
             return True
-        else:
-            raise FBException
+        raise FBException

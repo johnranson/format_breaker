@@ -21,7 +21,14 @@ def uniquify_name(name, context):
     return new_name
 
 
-def spacer(data, context, addr, spacer_size):
+def spacer(data, context, addr, spacer_size, bitwise=False):
+    if bitwise:
+        return bit_spacer(data, context, addr, spacer_size)
+    else:
+        return byte_spacer(data, context, addr, spacer_size)
+
+
+def byte_spacer(data, context, addr, spacer_size):
     """Reads a spacer of a certain length from the data, and saves it
         to the context dictionary
 
@@ -50,3 +57,7 @@ def spacer(data, context, addr, spacer_size):
     context[spacer_name] = data[addr:end_addr]
 
     return end_addr
+
+
+def bit_spacer(data, context, addr, spacer_size):
+    pass

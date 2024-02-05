@@ -33,7 +33,7 @@ class DataType(ABC):
             self.address = address
 
     @abstractmethod
-    def _parse(self, data, context, addr):
+    def _parse_bytewise(self, data, context, addr):
         """A method for parsing the current data at the current address. This
             is data type dependent. Stores the parsed value in the context
             dictionary.
@@ -47,10 +47,10 @@ class DataType(ABC):
             addr (int): The  byte address after the parsed data
         """
 
-    def _space_and_parse(self, data, context, addr):
-        """If the DataType has a fixed address, read to the address and save
-            it as a spacer value in the context. Then call the _parse
-            method.
+    def _parse_bitwise(self, data, context, addr):
+        """A method for parsing the current data at the current address. This
+            is data type dependent. Stores the parsed value in the context
+            dictionary.
 
         Args:
             data (bytes): Data being parsed
@@ -60,13 +60,46 @@ class DataType(ABC):
         Returns:
             addr (int): The  byte address after the parsed data
         """
+        
+    def _parse(self, data, context, addr, bitwise=False):
+        """A method for parsing the current data at the current address. This
+            is data type dependent. Stores the parsed value in the context
+            dictionary.
+
+        Args:
+            data (bytes): Data being parsed
+            context (dict): The dictionary where results are stored
+            addr (int): The current byte address in the data
+
+        Returns:
+            addr (int): The  byte address after the parsed data
+        """
+        if bitwise:
+            return self._parse_bitwise(data, context, addr)
+        return self._parse_bytewise(data, context, addr)
+
+
+    def _space_and_parse(self, data, context, addr, bitwise=False):
+        """If the DataType has a fixed address, read to the address and save
+            it as a spacer value in the context. Then call the _parse
+            method.
+
+        Args:
+            data (bytes): Data being parsed
+            context (dict): The dictionary where results are stored
+            addr (int): The current address in the data
+            bitwise (bool): Whether the addresses are bit addresses or a byte addresses
+
+        Returns:
+            addr (int): The address after the parsed data
+        """
         if self.address:
             if addr > self.address:
                 raise FBException("Target address has already been passed")
             if addr < self.address:
                 spacer_size = self.address - addr
-                addr = util.spacer(data, context, addr, spacer_size)
-        return self._parse(data, context, addr)
+                addr = util.spacer(data, context, addr, spacer_size, bitwise)
+        return self._parse(data, context, addr, bitwise)
 
     def parse(self, data):
         """Parse the provided bytes starting from address 0
@@ -188,7 +221,7 @@ class Chunk(DataType):
                     raise ValueError
         super().__init__(name, address, copy_source)
 
-    def _parse(self, data, context, addr):
+    def _parse_bytewise(self, data, context, addr):
         """Parse the data using each element provided sequentially.
 
         Args:
@@ -220,7 +253,7 @@ class Chunk(DataType):
 class Byte(DataType):
     """Reads a single byte from the data"""
 
-    def _parse(self, data, context, addr):
+    def _parse_bytewise(self, data, context, addr):
         if len(data) < addr + 1:
             raise FBException("No byte available to parse Byte")
 
@@ -249,7 +282,7 @@ class Bytes(DataType):
             self.length = length
         super().__init__(name, address, copy_source)
 
-    def _parse(self, data, context, addr):
+    def _parse_bytewise(self, data, context, addr):
         if len(data) < addr + self.length:
             raise FBException("Insufficient bytes available to parse Bytes")
         end_addr = addr + self.length
@@ -275,7 +308,7 @@ class VarBytes(DataType):
             self.length_key = length_key
         super().__init__(name, address, copy_source)
 
-    def _parse(self, data, context, addr):
+    def _parse_bytewise(self, data, context, addr):
 
         length = context[self.length_key]
         if len(data) < addr + length:
@@ -300,14 +333,14 @@ class PadToAddress(DataType):
     def __init__(self, address) -> None:
         super().__init__(address=address)
 
-    def _parse(self, data, context, addr):
+    def _parse_bytewise(self, data, context, addr):
         return addr
 
 
 class Remnant(DataType):
     """Reads all remainging bytes in the data"""
 
-    def _parse(self, data, context, addr):
+    def _parse_bytewise(self, data, context, addr):
         end_addr = len(data)
 
         if self.name:
