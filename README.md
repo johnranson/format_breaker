@@ -3,7 +3,7 @@ The purpose of this library is to extract data fields from arbitrary binary data
 ## Library Goals
 ### Simple and standard outputs
 The result of parsing data is a python dictionary of field names and the parsed values.
-### Human readible declarative syntax
+### Human readable declarative syntax
 The library doesn't use format strings to define the data. A byte is a Byte.
 ### Define fields sequentially or by address
 Data fields can be given specific addresses. Without address, fields are read sequentially.
