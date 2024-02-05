@@ -308,9 +308,7 @@ class Remnant(DataType):
     """Reads all remainging bytes in the data"""
 
     def _parse(self, data, context, addr):
-        length = len(data) - addr
-
-        end_addr = addr + length
+        end_addr = len(data)
 
         if self.name:
             self._store(context, data[addr:end_addr])
