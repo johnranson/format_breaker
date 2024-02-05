@@ -1,6 +1,7 @@
 """This module contains the basic datatypes with no decoding"""
 
 from abc import ABC, abstractmethod
+from bitstring import ConstBitStream
 from formatbreaker import util
 
 
@@ -17,7 +18,7 @@ class DataType(ABC):
         Args:
             name (string, optional): The key under which to store results in
                 the context dictionary during parsing. Defaults to None.
-            address (integer, optional): The address in the data array which
+            address (integer, optional): The address in the data which
                 this instance should read from. Defaults to None.
             copy_source (DataType, optional): An existing instance which
                 should be copied
@@ -55,12 +56,12 @@ class DataType(ABC):
         Args:
             data (bytes): Data being parsed
             context (dict): The dictionary where results are stored
-            addr (int): The current byte address in the data
+            addr (int): The current bit address in the data
 
         Returns:
-            addr (int): The  byte address after the parsed data
+            addr (int): The  bit address after the parsed data
         """
-        
+
     def _parse(self, data, context, addr, bitwise=False):
         """A method for parsing the current data at the current address. This
             is data type dependent. Stores the parsed value in the context
@@ -77,7 +78,6 @@ class DataType(ABC):
         if bitwise:
             return self._parse_bitwise(data, context, addr)
         return self._parse_bytewise(data, context, addr)
-
 
     def _space_and_parse(self, data, context, addr, bitwise=False):
         """If the DataType has a fixed address, read to the address and save
@@ -185,7 +185,13 @@ class Chunk(DataType):
     """A container that holds ordered data fields and provides a mechanism for parsing them in order"""
 
     def __init__(
-        self, *args, relative=None, name=None, address=None, copy_source=None
+        self,
+        *args,
+        relative=None,
+        name=None,
+        address=None,
+        copy_source=None,
+        bitwise=None,
     ) -> None:
         """Holds any number of DataType elements and parses them in order.
 
@@ -205,13 +211,17 @@ class Chunk(DataType):
         Raises:
             ValueError: one of the elements provided is not a DataType
         """
+        self.bitwise = False
         self.relative = True
         self.elements = []
         if copy_source:
+            self.bitwise = copy_source.bitwise
             self.relative = copy_source.relative
             self.elements = copy_source.elements
         if relative is not None:
             self.relative = relative
+        if bitwise:
+            self.bitwise = bitwise
         if args:
             self.elements = []
             for item in args:
@@ -233,10 +243,52 @@ class Chunk(DataType):
             addr (int): The  byte address after the parsed data
         """
         orig_addr = addr
+
+        if self.bitwise:
+            bit_length = self._parse_bitwise(ConstBitStream(data[addr:]), context, 0)
+
+            addr = orig_addr + bit_length // 8
+            if bit_length % 8:
+                addr += 1
+        else:
+            if self.relative:
+                addr = 0
+                data = data[addr:]
+            out_context = {}
+
+            for element in self.elements:
+                addr = element._space_and_parse(data, out_context, addr)
+
+            if self.relative:
+                addr = orig_addr + addr
+
+            if self.name:
+                self._store(context, out_context)
+            else:
+                self._update(context, out_context)
+        return addr
+
+    def _parse_bitwise(self, data, context, addr):
+        """Parse the data using each element provided sequentially.
+        
+        WORK IN PROGRESS
+
+        Args:
+            data (bitstream): Data being parsed
+            context (dict): The dictionary where results are stored
+            addr (int): The current bit address in the data
+
+        Returns:
+            addr (int): The  bit address after the parsed data
+        """
+        assert self.bitwise
+        orig_addr = addr
+
         if self.relative:
             addr = 0
             data = data[addr:]
         out_context = {}
+
         for element in self.elements:
             addr = element._space_and_parse(data, out_context, addr)
 
