@@ -11,7 +11,7 @@ class Int32sl(Bytes):
         super().__init__(4, name, address, copy_source)
 
     def _decode(self, data):
-        return int.from_bytes(super()._decode(data), "little", signed=True)
+        return int.from_bytes(data, "little", signed=True)
 
 
 class Int32ul(Bytes):
@@ -21,7 +21,7 @@ class Int32ul(Bytes):
         super().__init__(4, name, address, copy_source)
 
     def _decode(self, data):
-        return int.from_bytes(super()._decode(data), "little", signed=False)
+        return int.from_bytes(data, "little", signed=False)
 
 
 class Int16sl(Bytes):
@@ -31,7 +31,7 @@ class Int16sl(Bytes):
         super().__init__(2, name, address, copy_source)
 
     def _decode(self, data):
-        return int.from_bytes(super()._decode(data), "little", signed=True)
+        return int.from_bytes(data, "little", signed=True)
 
 
 class Int16ul(Bytes):
@@ -41,21 +41,21 @@ class Int16ul(Bytes):
         super().__init__(2, name, address, copy_source)
 
     def _decode(self, data):
-        return int.from_bytes(super()._decode(data), "little", signed=False)
+        return int.from_bytes(data, "little", signed=False)
 
 
 class Int8sl(Byte):
     """Reads 1 byte as a signed, little endian integer"""
 
     def _decode(self, data):
-        return int.from_bytes(super()._decode(data), "little", signed=True)
+        return int.from_bytes(data, "little", signed=True)
 
 
 class Int8ul(Byte):
     """Reads 1 byte as a unsigned, little endian integer"""
 
     def _decode(self, data):
-        return int.from_bytes(super()._decode(data), "little", signed=False)
+        return int.from_bytes(data, "little", signed=False)
 
 
 class Float32l(Bytes):
@@ -65,7 +65,7 @@ class Float32l(Bytes):
         super().__init__(4, name, address, copy_source)
 
     def _decode(self, data):
-        return struct.unpack("<f", super()._decode(data))[0]
+        return struct.unpack("<f", data)[0]
 
 
 class Float64l(Bytes):
@@ -75,4 +75,4 @@ class Float64l(Bytes):
         super().__init__(8, name, address, copy_source)
 
     def _decode(self, data):
-        return struct.unpack("<d", super()._decode(data))[0]
+        return struct.unpack("<d", data)[0]

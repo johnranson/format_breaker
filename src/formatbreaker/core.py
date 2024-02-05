@@ -1,4 +1,5 @@
 """This module contains the basic datatypes with no decoding"""
+
 from abc import ABC, abstractmethod
 from formatbreaker import util
 
@@ -32,7 +33,7 @@ class DataType(ABC):
             self.address = address
 
     @abstractmethod
-    def _parse(self, data, context, abs_addr, rel_addr):
+    def _parse(self, data, context, addr):
         """A method for parsing the current data at the current address. This
             is data type dependent. Stores the parsed value in the context
             dictionary.
@@ -50,7 +51,7 @@ class DataType(ABC):
             current data chunk after the parsed data
         """
 
-    def _space_and_parse(self, data, context, abs_addr, rel_addr):
+    def _space_and_parse(self, data, context, addr):
         """If the DataType has a fixed address, read to the address and save
             it as a spacer value in the context. Then call the _parse
             method.
@@ -58,24 +59,18 @@ class DataType(ABC):
         Args:
             data (bytes): Bytes to be parsed
             context (dict): The dictionary where results are stored
-            abs_addr (int): The current absolute byte address in the data
-            rel_addr (int): The current relative byte address in the
-            current data chunk
+            abs_addr (int): The current byte address in the data
 
         Returns:
-            abs_addr (int): The absolute byte address after the parsed data
-            rel_addr (int): The relative byte address in the
-            current data chunk after the parsed data
+            abs_addr (int): The byte address after the parsed data
         """
         if self.address:
-            if rel_addr > self.address:
+            if addr > self.address:
                 raise FBException("Target address has already been passed")
-            if rel_addr < self.address:
-                spacer_size = self.address - rel_addr
-                abs_addr, rel_addr = util.spacer(
-                    data, context, abs_addr, rel_addr, spacer_size
-                )
-        return self._parse(data, context, abs_addr, rel_addr)
+            if addr < self.address:
+                spacer_size = self.address - addr
+                addr = util.spacer(data, context, addr, spacer_size)
+        return self._parse(data, context, addr)
 
     def parse(self, data):
         """Parse the provided bytes starting from address 0
@@ -87,7 +82,7 @@ class DataType(ABC):
             dict: A dictionary of field names and parsed values
         """
         context = {}
-        self._space_and_parse(data, context, 0, 0)
+        self._space_and_parse(data, context, 0)
         return context
 
     def __call__(self, new_name=None, new_address=None):
@@ -197,7 +192,7 @@ class Chunk(DataType):
                     raise ValueError
         super().__init__(name, address, copy_source)
 
-    def _parse(self, data, context, abs_addr, rel_addr):
+    def _parse(self, data, context, addr):
         """Parse the data using each element provided sequentially.
 
         Args:
@@ -212,41 +207,38 @@ class Chunk(DataType):
             rel_addr (int): The relative byte address in the current data
                 chunk after the parsed data
         """
-        orig_abs_addr = abs_addr
-        orig_rel_addr = rel_addr
+        orig_addr = addr
         if self.relative:
-            rel_addr = 0
+            addr = 0
+            data = data[addr:]
         out_context = {}
         for element in self.elements:
-            abs_addr, rel_addr = element._space_and_parse(
-                data, out_context, abs_addr, rel_addr
-            )
-        chunk_size = abs_addr - orig_abs_addr
-        rel_addr = chunk_size + orig_rel_addr
+            addr = element._space_and_parse(data, out_context, addr)
+        if self.relative:
+            addr = orig_addr + addr
         if self.name:
             self._store(context, out_context)
         else:
             self._update(context, out_context)
-        return abs_addr, rel_addr
+        return addr
 
 
 class Byte(DataType):
     """Reads a single byte from the data"""
 
-    def _parse(self, data, context, abs_addr, rel_addr):
-        if len(data) < abs_addr + 1:
+    def _parse(self, data, context, addr):
+        if len(data) < addr + 1:
             raise FBException("No byte available to parse Byte")
 
-        end_abs_addr = abs_addr + 1
-        end_rel_addr = rel_addr + 1
+        end_addr = addr + 1
 
         if self.name:
-            self._store(context, data[abs_addr:end_abs_addr])
+            self._store(context, data[addr:end_addr])
         else:
-            byte_name = "byte_" + hex(rel_addr)
-            self._store(context, data[abs_addr:end_rel_addr], byte_name)
+            byte_name = "byte_" + hex(addr)
+            self._store(context, data[addr:end_addr], byte_name)
 
-        return end_abs_addr, end_rel_addr
+        return end_addr
 
 
 class Bytes(DataType):
@@ -263,19 +255,18 @@ class Bytes(DataType):
             self.length = length
         super().__init__(name, address, copy_source)
 
-    def _parse(self, data, context, abs_addr, rel_addr):
-        if len(data) < abs_addr + self.length:
+    def _parse(self, data, context, addr):
+        if len(data) < addr + self.length:
             raise FBException("Insufficient bytes available to parse Bytes")
-        end_abs_addr = abs_addr + self.length
-        end_rel_addr = rel_addr + self.length
+        end_addr = addr + self.length
 
         if self.name:
-            self._store(context, data[abs_addr:end_abs_addr])
+            self._store(context, data[addr:end_addr])
         else:
-            bytes_name = "bytes_" + hex(rel_addr)
-            self._store(context, data[abs_addr:end_abs_addr], bytes_name)
+            bytes_name = "bytes_" + hex(addr)
+            self._store(context, data[addr:end_addr], bytes_name)
 
-        return end_abs_addr, end_rel_addr
+        return end_addr
 
 
 class VarBytes(DataType):
@@ -285,27 +276,26 @@ class VarBytes(DataType):
         self, name=None, address=None, length_key=None, copy_source=None
     ) -> None:
         if copy_source:
-            self.lengh_key = copy_source.length_key
+            self.length_key = copy_source.length_key
         if length_key:
             self.length_key = length_key
         super().__init__(name, address, copy_source)
 
-    def _parse(self, data, context, abs_addr, rel_addr):
+    def _parse(self, data, context, addr):
 
         length = context[self.length_key]
-        if len(data) < abs_addr + length:
+        if len(data) < addr + length:
             raise FBException("Insufficient bytes available to parse VarBytes")
 
-        end_abs_addr = abs_addr + length
-        end_rel_addr = rel_addr + length
+        end_addr = addr + length
 
         if self.name:
-            self._store(context, data[abs_addr:end_abs_addr])
+            self._store(context, data[addr:end_addr])
         else:
-            bytes_name = "bytes_" + hex(rel_addr)
-            self._store(context, data[abs_addr:end_abs_addr], bytes_name)
+            bytes_name = "bytes_" + hex(addr)
+            self._store(context, data[addr:end_addr], bytes_name)
 
-        return end_abs_addr, end_rel_addr
+        return end_addr
 
 
 class PadToAddress(DataType):
@@ -316,23 +306,22 @@ class PadToAddress(DataType):
     def __init__(self, address) -> None:
         super().__init__(address=address)
 
-    def _parse(self, data, context, abs_addr, rel_addr):
-        return abs_addr, rel_addr
+    def _parse(self, data, context, addr):
+        return addr
 
 
 class Remnant(DataType):
     """Reads all remainging bytes in the data"""
 
-    def _parse(self, data, context, abs_addr, rel_addr):
-        length = len(data) - abs_addr
+    def _parse(self, data, context, addr):
+        length = len(data) - addr
 
-        end_abs_addr = abs_addr + length
-        end_rel_addr = rel_addr + length
+        end_addr = addr + length
 
         if self.name:
-            self._store(context, data[abs_addr:end_abs_addr])
+            self._store(context, data[addr:end_addr])
         else:
-            rem_name = "remnant_" + hex(rel_addr)
-            self._store(context, data[abs_addr:end_abs_addr], rem_name)
+            rem_name = "remnant_" + hex(addr)
+            self._store(context, data[addr:end_addr], rem_name)
 
-        return end_abs_addr, end_rel_addr
+        return end_addr

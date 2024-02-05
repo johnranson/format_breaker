@@ -21,7 +21,7 @@ def uniquify_name(name, context):
     return new_name
 
 
-def spacer(data, context, abs_addr, rel_addr, spacer_size):
+def spacer(data, context, addr, spacer_size):
     """Reads a spacer of a certain length from the data, and saves it
         to the context dictionary
 
@@ -38,16 +38,15 @@ def spacer(data, context, abs_addr, rel_addr, spacer_size):
         rel_addr (int): The relative byte address in the
             current data chunk following the spacer
     """
-    end_abs_addr = abs_addr + spacer_size
-    end_rel_addr = rel_addr + spacer_size
+    end_addr = addr + spacer_size
 
     if spacer_size > 1:
-        spacer_name = "spacer_" + hex(rel_addr) + "-" + hex(end_rel_addr - 1)
+        spacer_name = "spacer_" + hex(addr) + "-" + hex(addr - 1)
     else:
-        spacer_name = "spacer_" + hex(rel_addr)
+        spacer_name = "spacer_" + hex(addr)
 
     spacer_name = uniquify_name(spacer_name, context)
 
-    context[spacer_name] = data[abs_addr:end_abs_addr]
+    context[spacer_name] = data[addr:end_addr]
 
-    return end_abs_addr, end_rel_addr
+    return end_addr
