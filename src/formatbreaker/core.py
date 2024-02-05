@@ -41,14 +41,10 @@ class DataType(ABC):
         Args:
             data (bytes): Data being parsed
             context (dict): The dictionary where results are stored
-            abs_addr (int): The current absolute byte address in the data
-            rel_addr (int): The current relative byte address in the
-            current data chunk
+            addr (int): The current byte address in the data
 
         Returns:
-            abs_addr (int): The absolute byte address after the parsed data
-            rel_addr (int): The relative byte address in the
-            current data chunk after the parsed data
+            addr (int): The  byte address after the parsed data
         """
 
     def _space_and_parse(self, data, context, addr):
@@ -57,12 +53,12 @@ class DataType(ABC):
             method.
 
         Args:
-            data (bytes): Bytes to be parsed
+            data (bytes): Data being parsed
             context (dict): The dictionary where results are stored
-            abs_addr (int): The current byte address in the data
+            addr (int): The current byte address in the data
 
         Returns:
-            abs_addr (int): The byte address after the parsed data
+            addr (int): The  byte address after the parsed data
         """
         if self.address:
             if addr > self.address:
@@ -198,14 +194,10 @@ class Chunk(DataType):
         Args:
             data (bytes): Data being parsed
             context (dict): The dictionary where results are stored
-            abs_addr (int): The current absolute byte address in the data
-            rel_addr (int): The current relative byte address in the
-            current data chunk
+            addr (int): The current byte address in the data
 
         Returns:
-            abs_addr (int): The absolute byte address after the parsed data
-            rel_addr (int): The relative byte address in the current data
-                chunk after the parsed data
+            addr (int): The  byte address after the parsed data
         """
         orig_addr = addr
         if self.relative:
@@ -214,8 +206,10 @@ class Chunk(DataType):
         out_context = {}
         for element in self.elements:
             addr = element._space_and_parse(data, out_context, addr)
+
         if self.relative:
             addr = orig_addr + addr
+
         if self.name:
             self._store(context, out_context)
         else:
