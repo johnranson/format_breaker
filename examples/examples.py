@@ -58,7 +58,7 @@ pp.pprint(overall_format.parse(arr))
 arr = b'\xff\x08'
 
 bin_format = fb.Chunk(
-    fb.PadToAddress(3),
+    fb.BitWord(3),
     fb.Byte(),
     fb.Remnant(),
     bitwise=True

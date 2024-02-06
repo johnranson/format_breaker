@@ -1,7 +1,6 @@
 """This module contains the basic datatypes with no decoding"""
 
 from abc import ABC, abstractmethod
-from bitstring import ConstBitStream
 from formatbreaker import util
 
 
@@ -34,7 +33,7 @@ class DataType(ABC):
             self.address = address
 
     @abstractmethod
-    def _parse_bytewise(self, data, context, addr):
+    def _parse(self, data, context, addr):
         """A method for parsing the current data at the current address. This
             is data type dependent. Stores the parsed value in the context
             dictionary.
@@ -48,38 +47,7 @@ class DataType(ABC):
             addr (int): The  byte address after the parsed data
         """
 
-    def _parse_bitwise(self, data, context, addr):
-        """A method for parsing the current data at the current address. This
-            is data type dependent. Stores the parsed value in the context
-            dictionary.
-
-        Args:
-            data (bytes): Data being parsed
-            context (dict): The dictionary where results are stored
-            addr (int): The current bit address in the data
-
-        Returns:
-            addr (int): The  bit address after the parsed data
-        """
-
-    def _parse(self, data, context, addr, bitwise=False):
-        """A method for parsing the current data at the current address. This
-            is data type dependent. Stores the parsed value in the context
-            dictionary.
-
-        Args:
-            data (bytes): Data being parsed
-            context (dict): The dictionary where results are stored
-            addr (int): The current byte address in the data
-
-        Returns:
-            addr (int): The  byte address after the parsed data
-        """
-        if bitwise:
-            return self._parse_bitwise(data, context, addr)
-        return self._parse_bytewise(data, context, addr)
-
-    def _space_and_parse(self, data, context, addr, bitwise=False):
+    def _space_and_parse(self, data, context, addr):
         """If the DataType has a fixed address, read to the address and save
             it as a spacer value in the context. Then call the _parse
             method.
@@ -88,7 +56,6 @@ class DataType(ABC):
             data (bytes): Data being parsed
             context (dict): The dictionary where results are stored
             addr (int): The current address in the data
-            bitwise (bool): Whether the addresses are bit addresses or a byte addresses
 
         Returns:
             addr (int): The address after the parsed data
@@ -98,8 +65,8 @@ class DataType(ABC):
                 raise FBException("Target address has already been passed")
             if addr < self.address:
                 spacer_size = self.address - addr
-                addr = util.spacer(data, context, addr, spacer_size, bitwise)
-        return self._parse(data, context, addr, bitwise)
+                addr = util.spacer(data, context, addr, spacer_size)
+        return self._parse(data, context, addr)
 
     def parse(self, data):
         """Parse the provided bytes starting from address 0
@@ -231,7 +198,7 @@ class Chunk(DataType):
                     raise ValueError
         super().__init__(name, address, copy_source)
 
-    def _parse_bytewise(self, data, context, addr):
+    def _parse(self, data, context, addr):
         """Parse the data using each element provided sequentially.
 
         Args:
@@ -244,78 +211,64 @@ class Chunk(DataType):
         """
         orig_addr = addr
 
-        if self.bitwise:
-            bit_length = self._parse_bitwise(ConstBitStream(data[addr:]), context, 0)
+        bitwisedata = isinstance(data, util.BitwiseBytes)
 
-            addr = orig_addr + bit_length // 8
-            if bit_length % 8:
-                addr += 1
-        else:
-            if self.relative:
-                addr = 0
-                data = data[addr:]
-            out_context = {}
+        if bitwisedata and not self.bitwise:
+            raise ValueError
 
-            for element in self.elements:
-                addr = element._space_and_parse(data, out_context, addr)
+        convert_bit_addr_to_bytes = False
+        if self.bitwise and not bitwisedata:
+            convert_bit_addr_to_bytes = True
+            data = util.BitwiseBytes(data[addr:])
+            if not self.relative:
+                raise RuntimeError
 
-            if self.relative:
-                addr = orig_addr + addr
-
-            if self.name:
-                self._store(context, out_context)
-            else:
-                self._update(context, out_context)
-        return addr
-
-    def _parse_bitwise(self, data, context, addr):
-        """Parse the data using each element provided sequentially.
-        
-        WORK IN PROGRESS
-
-        Args:
-            data (bitstream): Data being parsed
-            context (dict): The dictionary where results are stored
-            addr (int): The current bit address in the data
-
-        Returns:
-            addr (int): The  bit address after the parsed data
-        """
-        assert self.bitwise
-        orig_addr = addr
-
-        if self.relative:
-            addr = 0
+        elif self.relative:
             data = data[addr:]
+            addr = 0
+
         out_context = {}
 
         for element in self.elements:
             addr = element._space_and_parse(data, out_context, addr)
 
-        if self.relative:
+        if convert_bit_addr_to_bytes:
+            if addr % 8:
+                raise RuntimeError
+            addr = orig_addr + addr // 8
+
+        elif self.relative:
             addr = orig_addr + addr
 
         if self.name:
             self._store(context, out_context)
         else:
             self._update(context, out_context)
+
         return addr
 
 
 class Byte(DataType):
     """Reads a single byte from the data"""
 
-    def _parse_bytewise(self, data, context, addr):
-        if len(data) < addr + 1:
+    def _parse(self, data, context, addr):
+        bitwise = isinstance(data, util.BitwiseBytes)
+        if bitwise:
+            length = 8
+        else:
+            length = 1
+        end_addr = addr + length
+
+        if len(data) < end_addr:
             raise FBException("No byte available to parse Byte")
 
-        end_addr = addr + 1
+        result = bytes(data[addr:end_addr])
 
         if self.name:
-            self._store(context, data[addr:end_addr])
+            self._store(context, result)
         else:
             byte_name = "byte_" + hex(addr)
-            self._store(context, data[addr:end_addr], byte_name)
+            self._store(context, result, byte_name)
 
         return end_addr
 
@@ -334,16 +287,25 @@ class Bytes(DataType):
             self.length = length
         super().__init__(name, address, copy_source)
 
-    def _parse_bytewise(self, data, context, addr):
-        if len(data) < addr + self.length:
-            raise FBException("Insufficient bytes available to parse Bytes")
+    def _parse(self, data, context, addr):
+        bitwise = isinstance(data, util.BitwiseBytes)
+
+        length = self.length
+        if bitwise:
+            length = length * 8
+
         end_addr = addr + self.length
 
+        if len(data) < end_addr:
+            raise FBException("Insufficient bytes available to parse Bytes")
+
+        result = bytes(data[addr:end_addr])
+
         if self.name:
-            self._store(context, data[addr:end_addr])
+            self._store(context, result)
         else:
             bytes_name = "bytes_" + hex(addr)
-            self._store(context, data[addr:end_addr], bytes_name)
+            self._store(context, result, bytes_name)
 
         return end_addr
 
@@ -360,19 +322,24 @@ class VarBytes(DataType):
             self.length_key = length_key
         super().__init__(name, address, copy_source)
 
-    def _parse_bytewise(self, data, context, addr):
+    def _parse(self, data, context, addr):
+        bitwise = isinstance(data, util.BitwiseBytes)
 
         length = context[self.length_key]
-        if len(data) < addr + length:
-            raise FBException("Insufficient bytes available to parse VarBytes")
-
+        if bitwise:
+            length = length * 8
         end_addr = addr + length
 
+        if len(data) < end_addr:
+            raise FBException("Insufficient bytes available to parse VarBytes")
+
+        result = bytes(data[addr:end_addr])
+
         if self.name:
-            self._store(context, data[addr:end_addr])
+            self._store(context, result)
         else:
             bytes_name = "bytes_" + hex(addr)
-            self._store(context, data[addr:end_addr], bytes_name)
+            self._store(context, result, bytes_name)
 
         return end_addr
 
@@ -385,20 +352,118 @@ class PadToAddress(DataType):
     def __init__(self, address) -> None:
         super().__init__(address=address)
 
-    def _parse_bytewise(self, data, context, addr):
+    def _parse(self, data, context, addr):
         return addr
 
 
 class Remnant(DataType):
     """Reads all remainging bytes in the data"""
 
-    def _parse_bytewise(self, data, context, addr):
+    def _parse(self, data, context, addr):
         end_addr = len(data)
 
+        result = bytes(data[addr:end_addr])
+
         if self.name:
-            self._store(context, data[addr:end_addr])
+            self._store(context, result)
         else:
             rem_name = "remnant_" + hex(addr)
-            self._store(context, data[addr:end_addr], rem_name)
+            self._store(context, result, rem_name)
 
         return end_addr
+
+
+class Bit(DataType):
+    """Reads a single byte from the data"""
+
+    def _parse(self, data, context, addr):
+        bitwise = isinstance(data, util.BitwiseBytes)
+        if not bitwise:
+            raise RuntimeError
+
+        end_addr = addr + 1
+
+        if len(data) < end_addr:
+            raise FBException("No bit available to parse Bit")
+
+        result = data[addr]
+
+        if self.name:
+            self._store(context, result)
+        else:
+            bit_name = "bit_" + hex(addr)
+            self._store(context, result, bit_name)
+
+        return end_addr
+
+
+class BitFlags(DataType):
+    """Reads a number of bits from the data"""
+
+    def __init__(self, length=None, name=None, address=None, copy_source=None) -> None:
+        if copy_source:
+            self.length = copy_source.length
+        if length:
+            if not isinstance(length, int):
+                raise ValueError
+            if length < 1:
+                raise ValueError
+            self.length = length
+        super().__init__(name, address, copy_source)
+
+    def _parse(self, data, context, addr):
+        bitwise = isinstance(data, util.BitwiseBytes)
+        if not bitwise:
+            raise RuntimeError
+
+        end_addr = addr + self.length
+
+        if len(data) < end_addr:
+            raise FBException("Insufficient bytes available to parse Bytes")
+
+        result = data[addr:end_addr].to_bools()
+
+        if self.name:
+            self._store(context, result)
+        else:
+            bytes_name = "bits_" + hex(addr)
+            self._store(context, result, bytes_name)
+
+        return end_addr
+
+
+class BitWord(DataType):
+    """Reads a number of bits from the data"""
+
+    def __init__(self, length=None, name=None, address=None, copy_source=None) -> None:
+        if copy_source:
+            self.length = copy_source.length
+        if length:
+            if not isinstance(length, int):
+                raise ValueError
+            if length < 1:
+                raise ValueError
+            self.length = length
+        super().__init__(name, address, copy_source)
+
+    def _parse(self, data, context, addr):
+        bitwise = isinstance(data, util.BitwiseBytes)
+        if not bitwise:
+            raise RuntimeError
+
+        end_addr = addr + self.length
+
+        if len(data) < end_addr:
+            raise FBException("Insufficient bytes available to parse Bytes")
+
+        result = int(data[addr:end_addr])
+
+        if self.name:
+            self._store(context, result)
+        else:
+            bytes_name = "bits_" + hex(addr)
+            self._store(context, result, bytes_name)
+
+        return end_addr
+
+
