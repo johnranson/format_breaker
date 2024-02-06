@@ -54,3 +54,14 @@ overall_format = fb.Chunk(
     )
 
 pp.pprint(overall_format.parse(arr))
+
+arr = b'\xff\x08'
+
+bin_format = fb.Chunk(
+    fb.PadToAddress(3),
+    fb.Byte(),
+    fb.Remnant(),
+    bitwise=True
+)
+
+pp.pprint(bin_format.parse(arr))
