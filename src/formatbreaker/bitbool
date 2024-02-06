@@ -27,3 +27,40 @@ class LFlag(Byte):
         if data[0] == self.value:
             return True
         raise FBException
+
+
+class BitwiseBytes():
+    """Allows treating bytes as a subscriptable bit list"""
+    def __init__(self, value, start_bit= 0, start_byte = 0, stop_bit=None, stop_byte = None):
+        if not isinstance(value, bytes):
+            raise ValueError
+        self.data = value
+        self.start_byte = start_byte
+        self.start_bit = start_bit
+        self.stop_bit = stop_bit if stop_bit is not None else 0
+        self.stop_byte = stop_byte if stop_byte is not None else len(value) + 1
+        self.length = (self.stop_byte - self.start_byte)*8 + (self.stop_bit-self.start_bit) - 1
+
+        
+    def __getitem__(self, item):
+        if isinstance(item, slice):
+            start, stop, step = item.indices(self.length)
+            if step != 1:
+                raise NotImplementedError
+            start_bit = (self.start_bit + start % 8) % 8
+            start_byte = self.start_byte + (start + self.start_bit) // 8
+            
+            stop_bit = (self.start_bit + start % 8) % 8
+            stop_byte = self.start_byte + (start + self.start_bit) // 8
+            return BitwiseBytes(self.data,start_bit,start_byte,stop_bit,stop_byte)
+            
+        elif isinstance(item, int):
+            if item >= self.length:
+                raise IndexError
+            bit_ind = (self.start_bit + item % 8) % 8
+            byte_ind = self.start_byte + (item + self.start_bit) // 8
+            
+            bit_raw = 0x01
+        
+        else:
+            raise ValueError
