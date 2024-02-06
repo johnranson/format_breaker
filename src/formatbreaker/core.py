@@ -465,5 +465,3 @@ class BitWord(DataType):
             self._store(context, result, bytes_name)
 
         return end_addr
-
-
