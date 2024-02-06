@@ -2,7 +2,8 @@
 
 import struct
 from uuid import UUID
-from formatbreaker import Bytes, Byte, FBException
+from formatbreaker import Bit, BitWord, Bytes, Byte, FBException
+from formatbreaker import util
 
 
 class ByteFlag(Byte):
