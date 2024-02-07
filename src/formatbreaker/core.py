@@ -4,6 +4,11 @@ from formatbreaker import util
 
 
 class FBError(Exception):
+    """This error should be raised when a datatype fails to parse the data
+    because it doesn't fit expectations. The idea is that optional data
+    types can fail to be parsed, and the top level code will move on and try
+    something else.
+    """
     pass
 
 
