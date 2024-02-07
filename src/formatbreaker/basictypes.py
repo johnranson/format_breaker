@@ -4,6 +4,8 @@ from formatbreaker import util
 
 class Byte(DataType):
     """Reads a single byte from the data"""
+    
+    backupname = "Byte"
 
     def _parse(self, data, context, addr):
         bitwise = isinstance(data, util.BitwiseBytes)
@@ -18,17 +20,16 @@ class Byte(DataType):
 
         result = bytes(data[addr:end_addr])
 
-        if self.name:
-            self._store(context, result)
-        else:
-            byte_name = "byte_" + hex(addr)
-            self._store(context, result, byte_name)
+        self._store(context, result, addr=addr)
+
 
         return end_addr
 
 
 class Bytes(DataType):
     """Reads a number of bytes from the data"""
+    
+    backupname = "Bytes"
 
     def __init__(self, length=None, name=None, address=None, copy_source=None) -> None:
         if copy_source:
@@ -55,17 +56,16 @@ class Bytes(DataType):
 
         result = bytes(data[addr:end_addr])
 
-        if self.name:
-            self._store(context, result)
-        else:
-            bytes_name = "bytes_" + hex(addr)
-            self._store(context, result, bytes_name)
+        self._store(context, result, addr=addr)
+
 
         return end_addr
 
 
 class VarBytes(DataType):
     """Reads a number of bytes from the data with length defined by another field"""
+    
+    backupname = "VarBytes"
 
     def __init__(
         self, name=None, address=None, length_key=None, copy_source=None
@@ -89,11 +89,8 @@ class VarBytes(DataType):
 
         result = bytes(data[addr:end_addr])
 
-        if self.name:
-            self._store(context, result)
-        else:
-            bytes_name = "bytes_" + hex(addr)
-            self._store(context, result, bytes_name)
+        self._store(context, result, addr=addr)
+
 
         return end_addr
 
@@ -110,23 +107,24 @@ class PadToAddress(DataType):
 
 class Remnant(DataType):
     """Reads all remainging bytes in the data"""
+    
+    backupname = "Remnant"
 
     def _parse(self, data, context, addr):
         end_addr = len(data)
 
         result = bytes(data[addr:end_addr])
 
-        if self.name:
-            self._store(context, result)
-        else:
-            rem_name = "remnant_" + hex(addr)
-            self._store(context, result, rem_name)
+        self._store(context, result, addr=addr)
+
 
         return end_addr
 
 
 class Bit(DataType):
     """Reads a single byte from the data"""
+    
+    backupname = "Bit"
 
     def _parse(self, data, context, addr):
         bitwise = isinstance(data, util.BitwiseBytes)
@@ -140,17 +138,16 @@ class Bit(DataType):
 
         result = data[addr]
 
-        if self.name:
-            self._store(context, result)
-        else:
-            bit_name = "bit_" + hex(addr)
-            self._store(context, result, bit_name)
+        self._store(context, result, addr=addr)
+
 
         return end_addr
 
 
 class BitFlags(DataType):
     """Reads a number of bits from the data"""
+    
+    backupname = "BitFlags"
 
     def __init__(self, length=None, name=None, address=None, copy_source=None) -> None:
         if copy_source:
@@ -175,17 +172,15 @@ class BitFlags(DataType):
 
         result = data[addr:end_addr].to_bools()
 
-        if self.name:
-            self._store(context, result)
-        else:
-            bytes_name = "bits_" + hex(addr)
-            self._store(context, result, bytes_name)
+        self._store(context, result, addr=addr)
 
         return end_addr
 
 
 class BitWord(DataType):
     """Reads a number of bits from the data"""
+    
+    backupname = "BitWord"
 
     def __init__(self, length=None, name=None, address=None, copy_source=None) -> None:
         if copy_source:
@@ -210,10 +205,6 @@ class BitWord(DataType):
 
         result = int(data[addr:end_addr])
 
-        if self.name:
-            self._store(context, result)
-        else:
-            bytes_name = "bits_" + hex(addr)
-            self._store(context, result, bytes_name)
+        self._store(context, result, addr=addr)
 
         return end_addr

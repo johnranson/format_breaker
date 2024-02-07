@@ -9,6 +9,8 @@ from formatbreaker import util
 
 class ByteFlag(Byte):
     """Reads 1 byte as a boolean"""
+    
+    backupname = "Flag"
 
     def __init__(self, value=None, name=None, address=None, copy_source=None) -> None:
         if copy_source:
@@ -27,6 +29,8 @@ class ByteFlag(Byte):
 
 
 class BitConst(Bit):
+    
+    backupname = "Const"
     def __init__(self, value=None, name=None, address=None, copy_source=None) -> None:
         if copy_source:
             self.value = copy_source.value
@@ -38,6 +42,9 @@ class BitConst(Bit):
 
 
 class BitWordConst(BitWord):
+    
+    backupname = "Const"
+    
     def __init__(
         self, value=None, length=None, name=None, address=None, copy_source=None
     ) -> None:
@@ -57,6 +64,9 @@ class BitWordConst(BitWord):
 
 
 class Int32sl(Bytes):
+    
+    backupname = "Int32"
+    
     """Reads 4 bytes as a signed, little endian integer"""
 
     def __init__(self, name=None, address=None, copy_source=None) -> None:
@@ -66,7 +76,10 @@ class Int32sl(Bytes):
         return int.from_bytes(data, "little", signed=True)
 
 
-class Int32ul(Bytes):
+class UInt32L(Bytes):
+    
+    backupname = "UInt32"
+    
     """Reads 4 bytes as a unsigned, little endian integer"""
 
     def __init__(self, name=None, address=None, copy_source=None) -> None:
@@ -76,7 +89,10 @@ class Int32ul(Bytes):
         return int.from_bytes(data, "little", signed=False)
 
 
-class Int16sl(Bytes):
+class Int16L(Bytes):
+    
+    backupname = "Int16"
+    
     """Reads 2 bytes as a signed, little endian integer"""
 
     def __init__(self, name=None, address=None, copy_source=None) -> None:
@@ -86,7 +102,10 @@ class Int16sl(Bytes):
         return int.from_bytes(data, "little", signed=True)
 
 
-class Int16ul(Bytes):
+class UInt16L(Bytes):
+    
+    backupname = "UInt16"
+    
     """Reads 2 bytes as a unsigned, little endian integer"""
 
     def __init__(self, name=None, address=None, copy_source=None) -> None:
@@ -96,14 +115,20 @@ class Int16ul(Bytes):
         return int.from_bytes(data, "little", signed=False)
 
 
-class Int8sl(Byte):
+class Int8L(Byte):
+    
+    backupname = "Int8"
+    
     """Reads 1 byte as a signed, little endian integer"""
 
     def _decode(self, data):
         return int.from_bytes(data, "little", signed=True)
 
 
-class Int8ul(Byte):
+class UInt8(Byte):
+    
+    backupname = "UInt8"
+    
     """Reads 1 byte as a unsigned, little endian integer"""
 
     def _decode(self, data):

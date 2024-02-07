@@ -16,6 +16,8 @@ class DataType():
     """This is the base class for all objects that parse data"""
     name: str
     address: int
+    
+    backupname = None
 
     def __init__(self, name=None, address=None, copy_source=None) -> None:
         """Basic code storing the name and address
@@ -45,18 +47,18 @@ class DataType():
             self.address = address
 
     def _parse(self, data, context, addr):
-        """A method for parsing the data at the current address. This
+        """A method for parsing data provided at the address provided. This
             is data type dependent. Stores the parsed value in the context
-            dictionary. Does nothing and returns the current address by default.
-            This should be overridden as needed by subclasses.
+            dictionary. Does nothing and returns the address unchanged by
+            default. This should be overridden as needed by subclasses.
 
         Args:
-            data (bytes or BitwiseBytes): Data being parsed
+            data (bytes or BitwiseBytes): Data to be parsed
             context (dict): The dictionary where results are stored
-            addr (int): The current bit or byte address in the data
+            addr (int): The bit or byte address to read from
 
         Returns:
-            addr (int): The bite or byte address after the parsed data
+            addr (int): The next bite or byte address after the parsed data
         """
         return addr
 
@@ -69,10 +71,10 @@ class DataType():
         Args:
             data (bytes or BitwiseBytes): Data being parsed
             context (dict): The dictionary where results are stored
-            addr (int): The current address in the data
+            addr (int): The current bit or byte address in the data
 
         Returns:
-            addr (int): The address after the parsed data
+            addr (int): The next bite or byte address after the parsed data
         """
         if self.address:
             if addr > self.address:
@@ -96,8 +98,8 @@ class DataType():
         return context
 
     def __call__(self, new_name=None, new_address=None):
-        """Allows instances to be callable to easily copy an instance with a
-            new name and/or address
+        """Allows instances to be callable to easily make a copy of the
+            instance with a new name and/or address
 
         Args:
             new_name (string, optional): Replaces the name of the copied
@@ -113,7 +115,7 @@ class DataType():
         address = new_address if new_address else self.address
         return type(self)(name=name, address=address, copy_source=self)
 
-    def _store(self, context, data, name=None):
+    def _store(self, context, data, addr=None, name=None):
         """Decode the parsed data and store the value in a unique name
 
         Args:
@@ -121,17 +123,26 @@ class DataType():
             data (object): The data to be decoded and stored
             name (string, optional): The name to store the data under. If no
                 name is provided, the code will use the name stored in the
-                instance. Defaults to None.
+                instance. If no name is stored in the instance, it will default
+                to the class backupname attribute.
+            addr: The location the data came from, used for unnamed fields
 
         Raises:
             RuntimeError: If no name can be found, an exception is raised
         """
+        
         if name:
-            context[util.uniquify_name(name, context)] = self._decode(data)
+            pass
         elif self.name:
-            context[util.uniquify_name(self.name, context)] = self._decode(data)
+            name = self.name
+        elif self.backupname and (addr is not None):
+            name = self.backupname + '_' + hex(addr)
         else:
             raise RuntimeError("Attempted to store unnamed data")
+            
+        name = util.uniquify_name(name, context)
+            
+        context[name] = self._decode(data)           
 
     def _update(self, context, data):
         """Decode a dictionary and store the new values in the provided
@@ -144,7 +155,7 @@ class DataType():
 
         decoded_data = self._decode(data)
         for key in decoded_data:
-            self._store(context, decoded_data[key], key)
+            self._store(context, decoded_data[key], name=key)
 
     def _decode(self, data):
         """A function for converting data to a different data type, run on the
