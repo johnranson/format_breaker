@@ -4,7 +4,7 @@ from formatbreaker import util
 
 class Byte(DataType):
     """Reads a single byte from the data"""
-    
+
     backupname = "Byte"
 
     def _parse(self, data, context, addr):
@@ -22,13 +22,12 @@ class Byte(DataType):
 
         self._store(context, result, addr=addr)
 
-
         return end_addr
 
 
 class Bytes(DataType):
     """Reads a number of bytes from the data"""
-    
+
     backupname = "Bytes"
 
     def __init__(self, length=None, name=None, address=None, copy_source=None) -> None:
@@ -58,13 +57,12 @@ class Bytes(DataType):
 
         self._store(context, result, addr=addr)
 
-
         return end_addr
 
 
 class VarBytes(DataType):
     """Reads a number of bytes from the data with length defined by another field"""
-    
+
     backupname = "VarBytes"
 
     def __init__(
@@ -91,14 +89,14 @@ class VarBytes(DataType):
 
         self._store(context, result, addr=addr)
 
-
         return end_addr
 
 
 class PadToAddress(DataType):
     """Brings the data stream to a specific address. Generates a spacer in the
-    output. Does not have a name and 
+    output. Does not have a name and
     """
+
     __call__ = None
 
     def __init__(self, address) -> None:
@@ -107,7 +105,7 @@ class PadToAddress(DataType):
 
 class Remnant(DataType):
     """Reads all remainging bytes in the data"""
-    
+
     backupname = "Remnant"
 
     def _parse(self, data, context, addr):
@@ -117,13 +115,12 @@ class Remnant(DataType):
 
         self._store(context, result, addr=addr)
 
-
         return end_addr
 
 
 class Bit(DataType):
     """Reads a single byte from the data"""
-    
+
     backupname = "Bit"
 
     def _parse(self, data, context, addr):
@@ -140,13 +137,12 @@ class Bit(DataType):
 
         self._store(context, result, addr=addr)
 
-
         return end_addr
 
 
 class BitFlags(DataType):
     """Reads a number of bits from the data"""
-    
+
     backupname = "BitFlags"
 
     def __init__(self, length=None, name=None, address=None, copy_source=None) -> None:
@@ -179,7 +175,7 @@ class BitFlags(DataType):
 
 class BitWord(DataType):
     """Reads a number of bits from the data"""
-    
+
     backupname = "BitWord"
 
     def __init__(self, length=None, name=None, address=None, copy_source=None) -> None:

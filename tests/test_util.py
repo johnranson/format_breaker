@@ -99,6 +99,8 @@ def test_bitwise_bytes():
         True,
     ]
 
+    assert len(data) == 32
+
     assert int(data) == 4279173375
 
     with pytest.raises(IndexError):
@@ -121,6 +123,8 @@ def test_bitwise_bytes():
     assert data[:0] == BitwiseBytes(b"")
 
     data = BitwiseBytes(b"")
+
+    assert len(data) == 0
     assert bytes(data) == b""
 
     assert not data.to_bools()

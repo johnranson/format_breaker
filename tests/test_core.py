@@ -1,79 +1,156 @@
 import pytest
-from formatbreaker.core import DataType, FBError
+from formatbreaker.core import DataType, FBError, Chunk
 
 
-def test_data_type():
+class TestDataType:
 
-    test_type = DataType()
+    @pytest.fixture
+    def default_dt(self):
+        return DataType()
 
-    assert test_type.name is None
-    assert test_type.address is None
+    def test_constructor_defaults_to_no_name_and_address(self, default_dt):
 
-    context = {}
+        assert default_dt.name is None
+        assert default_dt.address is None
 
-    with pytest.raises(RuntimeError):
-        test_type._store(context, "123")
+        context = {}
+        with pytest.raises(RuntimeError):
+            default_dt._store(context, "123")
 
-    copy_test_type = test_type()
+    def test_copy_works_after_default_constructor(self, default_dt):
 
-    assert copy_test_type is not test_type
+        copy_test_type = default_dt()
 
-    assert copy_test_type.name is None
-    assert copy_test_type.address is None
+        assert copy_test_type is not default_dt
+        assert copy_test_type.name is None
+        assert copy_test_type.address is None
 
-    with pytest.raises(ValueError):
-        test_type = DataType("name", "address")
+    def test_bad_constructor_types_raise_exceptions(self):
+        with pytest.raises(ValueError):
+            DataType("name", "address")
 
-    with pytest.raises(ValueError):
-        test_type = DataType(3, 3)
+        with pytest.raises(ValueError):
+            DataType(3, 3)
 
-    test_type = DataType("name", 3)
+    @pytest.fixture
+    def named_dt(self):
+        return DataType("name", 3)
 
-    assert test_type.name == "name"
-    assert test_type.address == 3
+    @pytest.fixture
+    def context(self):
+        return {}
 
-    copy_test_type = test_type()
+    def test_constructor_with_arguments_saves_name_and_address(self, named_dt):
+        assert named_dt.name == "name"
+        assert named_dt.address == 3
+        assert named_dt._decode("123") == "123"
 
-    assert copy_test_type is not test_type
+    def test_copy_works_after_constructor_with_name_and_address(self, named_dt):
+        copy_test_type = named_dt()
 
-    assert copy_test_type.name == "name"
-    assert copy_test_type.address == 3
+        assert copy_test_type is not named_dt
+        assert copy_test_type.name == "name"
+        assert copy_test_type.address == 3
 
-    assert test_type._decode("123") == "123"
+    def test_repeated_storing_and_updating_produces_expected_dictionary(
+        self, named_dt, context
+    ):
+        named_dt._store(context, "123")
+        named_dt._store(context, "456")
+        named_dt._update(context, {"test": "123"})
+        named_dt._update(context, {"test": "456"})
+        named_dt._update(context, {})
 
-    context = {}
-    test_type._store(context, "123")
-    test_type._store(context, "456")
-    test_type._update(context, {"test": "123"})
-    test_type._update(context, {"test": "456"})
-    test_type._update(context, {})
+        assert context == {
+            "name": "123",
+            "name 1": "456",
+            "test": "123",
+            "test 1": "456",
+        }
 
-    assert context["name"] == "123"
-    assert context["name 1"] == "456"
-    assert context["test"] == "123"
-    assert context["test 1"] == "456"
+    def test_default_parser_performs_no_op(self, named_dt, context):
+        result = named_dt._parse(b"123", context, 5)
 
-    context = {}
-    result = test_type._parse(b"123", context, 5)
+        assert result == 5
+        assert context == {}
 
-    assert result is 5
-    assert not bool(context)
+    def test_space_and_parse_raises_error_past_required_address(
+        self, named_dt, context
+    ):
+        with pytest.raises(FBError):
+            result = named_dt._space_and_parse(b"123456", context, 5)
 
-    with pytest.raises(FBError):
-        result = test_type._space_and_parse(b"123456", context, 5)
+    def test_space_and_parse_does_not_create_spacer_if_at_address(
+        self, named_dt, context
+    ):
+        result = named_dt._space_and_parse(b"123456", context, 3)
+        assert result == 3
+        assert not bool(context)
 
-    result = test_type._space_and_parse(b"123456", context, 3)
+    def test_space_and_parse_creates_spacer_if_before_required_address(
+        self, named_dt, context
+    ):
+        result = named_dt._space_and_parse(b"123456", context, 1)
 
-    assert result == 3
-    assert not bool(context)
-
-    result = test_type._space_and_parse(b"123456", context, 1)
-
-    print(context)
-
-    assert result == 3
-    assert context["spacer_0x1-0x2"] == b"23"
+        assert result == 3
+        assert context["spacer_0x1-0x2"] == b"23"
 
 
-def test_chunk():
-    pass
+class TestChunk:
+    class MockType(DataType):
+        backupname = "mock"
+
+        def __init__(
+            self, length=None, value=None, name=None, address=None, copy_source=None
+        ) -> None:
+            self.value = value
+            self.length = length
+            super().__init__(name, address, copy_source)
+
+        def _parse(self, data, context, addr):
+            end_addr = addr + self.length
+            self._store(context, self.value, addr=addr)
+            return end_addr
+
+    @pytest.fixture
+    def empty_chunk(self):
+        return Chunk()
+
+    def test_empty_chunk_returns_empty_dict_on_parsing(self, empty_chunk):
+        assert empty_chunk.parse(b"abc") == {}
+        
+    @pytest.fixture
+    def sequential_chunk(self):
+        return Chunk(TestChunk.MockType(3, "foo"), TestChunk.MockType(5, "bar"), TestChunk.MockType(1, "baz"))
+
+    def test_chunk_returns_parsing_results_from_all_elements(self, sequential_chunk):
+        result = sequential_chunk.parse(b"12354234562")
+        assert result == {"mock_0x0": "foo", "mock_0x3": "bar", "mock_0x8": "baz"}
+
+    def test_chunk_returns_error_if_parsing_elements_parse_past_end_of_input(
+        self, sequential_chunk
+    ):
+
+        with pytest.raises(RuntimeError):
+            sequential_chunk.parse(b"12")
+
+    @pytest.fixture
+    def addressed_chunk(self):
+        return Chunk(
+            TestChunk.MockType(3, "foo"),
+            TestChunk.MockType(5, "bar"),
+            TestChunk.MockType(1, "baz"),
+            TestChunk.MockType(2, "qux", address=10),
+        )
+
+    def test_chunk_gets_spacer_with_addressed_elements(self, addressed_chunk):
+
+        result = addressed_chunk.parse(b"\0" * 100)
+
+        assert result == {
+            "mock_0x0": "foo",
+            "mock_0x3": "bar",
+            "mock_0x8": "baz",
+            "spacer_0x9": b"\x00",
+            "mock_0xa": "qux",
+        }

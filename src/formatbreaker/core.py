@@ -209,8 +209,10 @@ class Chunk(DataType):
             self.relative = copy_source.relative
             self.elements = copy_source.elements
         if relative is not None:
+            if not isinstance(relative, bool):
+                raise ValueError
             self.relative = relative
-        if bitwise:
+        if bitwise is not None:
             self.bitwise = bitwise
         if args:
             self.elements = []
@@ -254,6 +256,8 @@ class Chunk(DataType):
 
         for element in self.elements:
             addr = element._space_and_parse(data, out_context, addr)
+            if addr > len(data):
+                raise RuntimeError
 
         if convert_bit_addr_to_bytes:
             if addr % 8:
