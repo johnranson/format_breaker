@@ -45,17 +45,18 @@ class DataType():
             self.address = address
 
     def _parse(self, data, context, addr):
-        """A method for parsing the current data at the current address. This
+        """A method for parsing the data at the current address. This
             is data type dependent. Stores the parsed value in the context
-            dictionary.
+            dictionary. Does nothing and returns the current address by default.
+            This should be overridden as needed by subclasses.
 
         Args:
-            data (bytes): Data being parsed
+            data (bytes or BitwiseBytes): Data being parsed
             context (dict): The dictionary where results are stored
-            addr (int): The current byte address in the data
+            addr (int): The current bit or byte address in the data
 
         Returns:
-            addr (int): The  byte address after the parsed data
+            addr (int): The bite or byte address after the parsed data
         """
         return addr
 
@@ -66,7 +67,7 @@ class DataType():
             method.
 
         Args:
-            data (bytes): Data being parsed
+            data (bytes or BitwiseBytes): Data being parsed
             context (dict): The dictionary where results are stored
             addr (int): The current address in the data
 
@@ -82,10 +83,10 @@ class DataType():
         return self._parse(data, context, addr)
 
     def parse(self, data):
-        """Parse the provided bytes starting from address 0
+        """Parse the provided data starting from address 0
 
         Args:
-            data (bytes): Bytes to be parsed
+            data (bytes or BitwiseBytes): Data to be parsed
 
         Returns:
             dict: A dictionary of field names and parsed values
@@ -139,9 +140,6 @@ class DataType():
         Args:
             context (dict): Where to store the value
             data (dict): The data to be decoded and stored
-
-        Raises:
-            RuntimeError: If no name can be found, an exception is raised
         """
 
         decoded_data = self._decode(data)
@@ -150,7 +148,8 @@ class DataType():
 
     def _decode(self, data):
         """A function for converting data to a different data type, run on the
-            parsed output. Defaults to passing through the data unchanged
+            parsed output. Defaults to passing through the data unchanged.
+            This should be overridden as needed by subclasses.
 
         Args:
             data (object): Input data
@@ -183,7 +182,7 @@ class Chunk(DataType):
             name (string, optional): Key where the decoded data is stored.
                 If not defined, decoded parsed data is stored directly in the
                 parsing context
-            address (integer, optional): The address in the data array which
+            address (integer, optional): The address in the data which
                 this instance should read from. Defaults to None.
             copy_source (DataType, optional): An existing instance which
                 should be copied
@@ -215,12 +214,12 @@ class Chunk(DataType):
         """Parse the data using each element provided sequentially.
 
         Args:
-            data (bytes): Data being parsed
+            data (bytes or BitwiseBytes): Data being parsed
             context (dict): The dictionary where results are stored
-            addr (int): The current byte address in the data
+            addr (int): The current bit or byte address in the data
 
         Returns:
-            addr (int): The  byte address after the parsed data
+            addr (int): The bite or byte address after the parsed data
         """
         orig_addr = addr
 
