@@ -38,7 +38,13 @@ def spacer(data, context, addr, spacer_size):
     """
     end_addr = addr + spacer_size
 
-    if spacer_size < 1:
+    if addr < 0:
+        raise IndexError
+    if end_addr > len(data):
+        raise IndexError
+    if spacer_size == 0:
+        return end_addr
+    if spacer_size < 0:
         raise ValueError
     if spacer_size > 1:
         spacer_name = "spacer_" + hex(addr) + "-" + hex(addr + spacer_size - 1)
@@ -48,9 +54,7 @@ def spacer(data, context, addr, spacer_size):
     spacer_name = uniquify_name(spacer_name, context)
 
     context[spacer_name] = bytes(data[addr:end_addr])
-
     return end_addr
-
 
 class BitwiseBytes:
     """Allows treating bytes as a subscriptable bit list"""
@@ -59,7 +63,7 @@ class BitwiseBytes:
         self.data = bytes(value)
         self.start_byte = start_byte
         self.start_bit = start_bit
-        if length:
+        if length is not None:
             self.length = length
         else:
             self.length = len(value) * 8
@@ -74,6 +78,7 @@ class BitwiseBytes:
         if isinstance(item, slice):
             start, stop, step = item.indices(self.length)
             length = stop - start
+            assert length >= 0
             if step != 1:
                 raise NotImplementedError
             start_bit = (self.start_bit + start % 8) % 8
@@ -82,8 +87,9 @@ class BitwiseBytes:
             return BitwiseBytes(self.data, start_byte, start_bit, length)
 
         elif isinstance(item, int):
-            if item >= self.length:
+            if item >= self.length or item < -self.length:
                 raise IndexError
+            item = item % self.length
             bit_ind = (self.start_bit + item % 8) % 8
             byte_ind = self.start_byte + (item + self.start_bit) // 8
 
@@ -98,6 +104,8 @@ class BitwiseBytes:
         return self.length
 
     def __bytes__(self):
+        if self.length == 0:
+            return b''
 
         if self.stop_bit == 0:
             last_byte_addr = self.stop_byte - 1
@@ -121,20 +129,25 @@ class BitwiseBytes:
                 mid_bytes = self.data[self.start_byte + 1 : last_byte_addr]
 
             data = first_byte + mid_bytes + last_byte
+            
+            if self.stop_bit == 0:
+                result = data
+            else:
+                shift_data = [b << (8 - stop_shift) for b in data]
 
-            shift_data = [b << (8 - stop_shift) for b in data]
+                first_part = [b & 0xFF for b in shift_data[:-1]]
+                second_part = [b >> 8 for b in shift_data[1:]]
 
-            first_part = [b & 0xFF for b in shift_data[:-1]]
-            second_part = [b >> 8 for b in shift_data[1:]]
-
-            result = bytes(map(add, first_part, second_part))
+                result = bytes(map(add, first_part, second_part))
         return result
 
     def to_bools(self):
         return [self[i] for i in range(self.length)]
 
     def __index__(self):
+        if self.length == 0:
+            raise RuntimeError
         return int.from_bytes(bytes(self), "big", signed=False)
 
     def __eq__(self, other):
-        return (self.length == other.length) and (int(self) == int(other))
+        return (self.length == other.length) and (self.length == 0 or (int(self) == int(other)))

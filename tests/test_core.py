@@ -73,3 +73,7 @@ def test_data_type():
 
     assert result == 3
     assert context["spacer_0x1-0x2"] == b"23"
+
+
+def test_chunk():
+    pass
