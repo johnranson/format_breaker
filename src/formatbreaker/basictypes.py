@@ -1,4 +1,4 @@
-from formatbreaker.core import DataType, FBException
+from formatbreaker.core import DataType, FBError
 from formatbreaker import util
 
 
@@ -14,7 +14,7 @@ class Byte(DataType):
         end_addr = addr + length
 
         if len(data) < end_addr:
-            raise FBException("No byte available to parse Byte")
+            raise FBError("No byte available to parse Byte")
 
         result = bytes(data[addr:end_addr])
 
@@ -51,7 +51,7 @@ class Bytes(DataType):
         end_addr = addr + self.length
 
         if len(data) < end_addr:
-            raise FBException("Insufficient bytes available to parse Bytes")
+            raise FBError("Insufficient bytes available to parse Bytes")
 
         result = bytes(data[addr:end_addr])
 
@@ -85,7 +85,7 @@ class VarBytes(DataType):
         end_addr = addr + length
 
         if len(data) < end_addr:
-            raise FBException("Insufficient bytes available to parse VarBytes")
+            raise FBError("Insufficient bytes available to parse VarBytes")
 
         result = bytes(data[addr:end_addr])
 
@@ -100,14 +100,12 @@ class VarBytes(DataType):
 
 class PadToAddress(DataType):
     """Brings the data stream to a specific address. Generates a spacer in the
-    output
+    output. Does not have a name and 
     """
+    __call__ = None
 
     def __init__(self, address) -> None:
         super().__init__(address=address)
-
-    def _parse(self, data, context, addr):
-        return addr
 
 
 class Remnant(DataType):
@@ -138,7 +136,7 @@ class Bit(DataType):
         end_addr = addr + 1
 
         if len(data) < end_addr:
-            raise FBException("No bit available to parse Bit")
+            raise FBError("No bit available to parse Bit")
 
         result = data[addr]
 
@@ -173,7 +171,7 @@ class BitFlags(DataType):
         end_addr = addr + self.length
 
         if len(data) < end_addr:
-            raise FBException("Insufficient bytes available to parse Bytes")
+            raise FBError("Insufficient bytes available to parse Bytes")
 
         result = data[addr:end_addr].to_bools()
 
@@ -208,7 +206,7 @@ class BitWord(DataType):
         end_addr = addr + self.length
 
         if len(data) < end_addr:
-            raise FBException("Insufficient bytes available to parse Bytes")
+            raise FBError("Insufficient bytes available to parse Bytes")
 
         result = int(data[addr:end_addr])
 

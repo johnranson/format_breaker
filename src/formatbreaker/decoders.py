@@ -2,7 +2,8 @@
 
 import struct
 from uuid import UUID
-from formatbreaker import Bit, BitWord, Bytes, Byte, FBException
+from formatbreaker.basictypes import Bit, BitWord, Bytes, Byte
+from formatbreaker.core import FBError
 from formatbreaker import util
 
 
@@ -21,7 +22,7 @@ class ByteFlag(Byte):
             return False
         if self.value:
             if data[0] != self.value:
-                raise FBException
+                raise FBError
         return True
 
 

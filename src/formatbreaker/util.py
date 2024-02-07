@@ -135,6 +135,6 @@ class BitwiseBytes:
 
     def __index__(self):
         return int.from_bytes(bytes(self), "big", signed=False)
-    
+
     def __eq__(self, other):
         return (self.length == other.length) and (int(self) == int(other))

@@ -1,15 +1,16 @@
 """This module contains the basic datatypes with no decoding"""
 
-from abc import ABC, abstractmethod
 from formatbreaker import util
 
 
-class FBException(Exception):
+class FBError(Exception):
     pass
 
 
-class DataType(ABC):
+class DataType():
     """This is the base class for all objects that parse data"""
+    name: str
+    address: int
 
     def __init__(self, name=None, address=None, copy_source=None) -> None:
         """Basic code storing the name and address
@@ -25,14 +26,19 @@ class DataType(ABC):
         self.name = None
         self.address = None
         if copy_source:
+            if not isinstance(copy_source, DataType):
+                raise ValueError
             self.name = copy_source.name
             self.address = copy_source.address
         if name:
+            if not isinstance(name, str):
+                raise ValueError
             self.name = name
-        if address:
+        if address is not None:
+            if not isinstance(address, int):
+                raise ValueError
             self.address = address
 
-    @abstractmethod
     def _parse(self, data, context, addr):
         """A method for parsing the current data at the current address. This
             is data type dependent. Stores the parsed value in the context
@@ -46,6 +52,8 @@ class DataType(ABC):
         Returns:
             addr (int): The  byte address after the parsed data
         """
+        return addr
+
 
     def _space_and_parse(self, data, context, addr):
         """If the DataType has a fixed address, read to the address and save
@@ -62,7 +70,7 @@ class DataType(ABC):
         """
         if self.address:
             if addr > self.address:
-                raise FBException("Target address has already been passed")
+                raise FBError("Target address has already been passed")
             if addr < self.address:
                 spacer_size = self.address - addr
                 addr = util.spacer(data, context, addr, spacer_size)
