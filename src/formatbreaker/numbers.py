@@ -1,7 +1,7 @@
 """This module contains the datatypes which decode as numbers"""
 
 import struct
-from formatbreaker.core import Bytes, Byte
+from formatbreaker.basictypes import Bytes, Byte
 
 
 class Int32sl(Bytes):
