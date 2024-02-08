@@ -60,20 +60,46 @@ def spacer(data, context, addr, spacer_size):
 class BitwiseBytes:
     """Allows treating bytes as a subscriptable bit list"""
 
-    def __init__(self, value, start_byte=0, start_bit=0, length=None):
-        self.data = bytes(value)
-        self.start_byte = start_byte
-        self.start_bit = start_bit
-        if length is not None:
-            self.length = length
+    def __init__(self, value, start_byte=None, start_bit=None, length=None):
+        if isinstance(value, BitwiseBytes):
+            if (length is not None) or (start_bit is not None) or (start_byte is not None):
+                raise ValueError
+            self.data = value.data
+            self.start_byte = value.start_byte
+            self.start_bit = value.start_bit
+            self.stop_byte = value.stop_byte
+            self.stop_bit = value.stop_bit
+            self.length = value.length
         else:
-            self.length = len(value) * 8
+            self.data = bytes(value)
+            if start_byte is not None:
+                if not isinstance(start_byte, int) or not isinstance(start_bit, int):
+                    raise ValueError
+                if start_byte < 0 or start_bit > 7:
+                    raise IndexError
+            self.start_byte = start_byte if start_byte else 0
+            
+            if start_bit is not None:
+                if not isinstance(start_bit, int):
+                    raise ValueError
+                if  start_bit < 0:
+                    raise IndexError
+                self.start_byte = self.start_byte + start_bit // 8
+            self.start_bit = start_bit % 8 if start_bit else 0
 
-        self.stop_bit = self.length % 8 + start_bit
-        self.stop_byte = self.length // 8 + start_byte
-        if self.stop_bit > 7:
-            self.stop_byte += 1
-            self.stop_bit -= 8
+            if length is not None:
+                self.length = length
+            else:
+                self.length = len(value) * 8
+
+            self.stop_bit = self.length % 8 + self.start_bit
+            self.stop_byte = self.length // 8 + self.start_byte
+            if self.stop_bit > 7:
+                self.stop_byte += 1
+                self.stop_bit -= 8
+                
+            if self.stop_byte > len(value) or (self.stop_byte == len(value) and self.stop_bit > 0):
+                raise IndexError
 
     def __getitem__(self, item):
         if isinstance(item, slice):

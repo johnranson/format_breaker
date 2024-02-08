@@ -59,16 +59,34 @@ class TestSpacer:
 
 
 class TestBitwiseBytes:
-
-    bytedata = b"\xff\x0f\x00\xff"
-
     @pytest.fixture
-    def data(self):
-        bytedata = self.bytedata
+    def bytedata(self):
+        return b"\xff\x0f\x00\xff"
+    
+    @pytest.fixture
+    def data(self, bytedata):
         return BitwiseBytes(bytedata)
-
-    def test_converting_back_to_bytes_is_invariant(self, data):
-        assert bytes(data) == self.bytedata
+    
+    def test_invalid_constructor_inputs_raise_error(self, bytedata):
+        with pytest.raises(ValueError):
+            BitwiseBytes(bytedata, 0, None, 1)
+        with pytest.raises(IndexError):
+            BitwiseBytes(bytedata, 1, 9, 1)
+        with pytest.raises(ValueError):
+            BitwiseBytes(bytedata, 0, None, True)
+            
+    def test_constructor_stop_bit_logic_ok(self, bytedata):
+        with pytest.raises(IndexError):
+            BitwiseBytes(bytedata, 4, 0, 1)
+        assert bytes(BitwiseBytes(bytedata, 4, 0, 0)) == b''
+        
+    def test_converting_back_to_bytes_is_invariant(self, data, bytedata):
+        assert bytes(data) == bytedata
+        
+    def test_copy_constructor_is_invariant(self, data):
+        copy = BitwiseBytes(data)
+        assert copy == data
+        assert copy is not data
 
     def test_slices_with_identical_contents_equal(self, data):
         assert data[0:8] == data[24:32]
