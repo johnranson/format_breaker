@@ -1,9 +1,11 @@
 """Code that is mostly used internally"""
 
+from __future__ import annotations
+from typing import Any, overload
 from operator import add
 
 
-def uniquify_name(name, context):
+def uniquify_name(name: str, context: dict[str, Any]) -> str:
     """This adds " N" to a string key if the key already exists in the
         dictionary, where N is the first natural number that makes the
         key unique
@@ -23,7 +25,12 @@ def uniquify_name(name, context):
     return new_name
 
 
-def spacer(data, context, addr, spacer_size):
+def spacer(
+    data: bytes | BitwiseBytes,
+    context: dict[str, Any],
+    addr: int,
+    spacer_size: int,
+) -> int:
     """Reads a spacer of a certain length from the data, and saves it
         to the context dictionary
 
@@ -60,7 +67,20 @@ def spacer(data, context, addr, spacer_size):
 class BitwiseBytes:
     """Allows treating bytes as a subscriptable bit list"""
 
-    def __init__(self, value, start_byte=None, start_bit=None, length=None):
+    data: bytes
+    start_bit: int
+    stop_bit: int
+    start_byte: int
+    stop_byte: int
+    length: int
+
+    def __init__(
+        self,
+        value: bytes | BitwiseBytes,
+        start_byte: int | None = None,
+        start_bit: int | None = None,
+        length: int | None = None,
+    ) -> None:
         if isinstance(value, BitwiseBytes):
             if (
                 (length is not None)
@@ -113,7 +133,13 @@ class BitwiseBytes:
         else:
             raise ValueError
 
-    def __getitem__(self, item):
+    @overload
+    def __getitem__(self, item: int) -> bool: ...
+
+    @overload
+    def __getitem__(self, item: slice) -> BitwiseBytes: ...
+
+    def __getitem__(self, item: int | slice) -> BitwiseBytes | bool:
         if isinstance(item, slice):
             start, stop, step = item.indices(self.length)
             length = stop - start
@@ -139,10 +165,10 @@ class BitwiseBytes:
         else:
             raise ValueError
 
-    def __len__(self):
+    def __len__(self) -> int:
         return self.length
 
-    def __bytes__(self):
+    def __bytes__(self) -> bytes:
         if self.length == 0:
             return b""
 
@@ -187,25 +213,29 @@ class BitwiseBytes:
                 result = bytes(map(add, first_part, second_part))
         return result
 
-    def to_bools(self):
-        return [self[i] for i in range(self.length)]
+    def to_bools(self) -> list[bool]:
+        return [bool(self[i]) for i in range(self.length)]
 
-    def __index__(self):
+    def __index__(self) -> int:
         if self.length == 0:
             raise RuntimeError
         return int.from_bytes(bytes(self), "big", signed=False)
 
-    def __eq__(self, other):
-        return (self.length == other.length) and (
-            self.length == 0 or (int(self) == int(other))
+    def __eq__(self: BitwiseBytes, other: object) -> bool:
+        return (
+            isinstance(other, BitwiseBytes)
+            and (self.length == other.length)
+            and (self.length == 0 or (int(self) == int(other)))
         )
 
 
-def validate_address_or_length(address, amin=0, amax=None):
+def validate_address_or_length(
+    address: int, amin: int = 0, amax: int | None = None
+) -> None:
     if not isinstance(address, int):
         raise TypeError
     if address < amin:
         raise IndexError
-    if max is not None:
+    if amax is not None:
         if address > amax:
             raise IndexError

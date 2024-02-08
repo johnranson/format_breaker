@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 from formatbreaker.core import DataType, FBError
 from formatbreaker import util
 
@@ -7,7 +9,12 @@ class Byte(DataType):
 
     backupname = "Byte"
 
-    def _parse(self, data, context, addr):
+    def _parse(
+        self,
+        data: bytes | util.BitwiseBytes,
+        context: dict[str, Any],
+        addr: int,
+    ) -> int:
         bitwise = isinstance(data, util.BitwiseBytes)
         if bitwise:
             length = 8
@@ -30,12 +37,17 @@ class Bytes(DataType):
 
     backupname = "Bytes"
 
-    def __init__(self, length, **kwargs) -> None:
+    def __init__(self, length: int, **kwargs: Any) -> None:
         util.validate_address_or_length(length, 1)
         self.length = length
         super().__init__(**kwargs)
 
-    def _parse(self, data, context, addr):
+    def _parse(
+        self,
+        data: bytes | util.BitwiseBytes,
+        context: dict[str, Any],
+        addr: int,
+    ) -> int:
         bitwise = isinstance(data, util.BitwiseBytes)
 
         length = self.length
@@ -55,17 +67,23 @@ class Bytes(DataType):
 
 
 class VarBytes(DataType):
-    """Reads a number of bytes from the data with length defined by another field"""
+    """Reads a number of bytes from the data with length defined by another
+    field"""
 
     backupname = "VarBytes"
 
-    def __init__(self, length_key, **kwargs) -> None:
+    def __init__(self, length_key: str, **kwargs: Any) -> None:
         if not isinstance(length_key, str):
             raise TypeError
         self.length_key = length_key
         super().__init__(**kwargs)
 
-    def _parse(self, data, context, addr):
+    def _parse(
+        self,
+        data: bytes | util.BitwiseBytes,
+        context: dict[str, Any],
+        addr: int,
+    ) -> int:
         bitwise = isinstance(data, util.BitwiseBytes)
 
         length = context[self.length_key]
@@ -88,9 +106,12 @@ class PadToAddress(DataType):
     output. Does not have a name and
     """
 
-    __call__ = None
+    def __call__(
+        self, name: str | None = None, address: int | None = None
+    ) -> DataType:
+        raise NotImplementedError
 
-    def __init__(self, address) -> None:
+    def __init__(self, address: int) -> None:
         super().__init__(address=address)
 
 
@@ -99,7 +120,12 @@ class Remnant(DataType):
 
     backupname = "Remnant"
 
-    def _parse(self, data, context, addr):
+    def _parse(
+        self,
+        data: bytes | util.BitwiseBytes,
+        context: dict[str, Any],
+        addr: int,
+    ) -> int:
         end_addr = len(data)
 
         result = bytes(data[addr:end_addr])
@@ -114,7 +140,12 @@ class Bit(DataType):
 
     backupname = "Bit"
 
-    def _parse(self, data, context, addr):
+    def _parse(
+        self,
+        data: bytes | util.BitwiseBytes,
+        context: dict[str, Any],
+        addr: int,
+    ) -> int:
         bitwise = isinstance(data, util.BitwiseBytes)
         if not bitwise:
             raise RuntimeError
@@ -136,13 +167,18 @@ class BitFlags(DataType):
 
     backupname = "BitFlags"
 
-    def __init__(self, length, **kwargs) -> None:
+    def __init__(self, length: int, **kwargs: Any) -> None:
 
         util.validate_address_or_length(length, 1)
         self.length = length
         super().__init__(**kwargs)
 
-    def _parse(self, data, context, addr):
+    def _parse(
+        self,
+        data: bytes | util.BitwiseBytes,
+        context: dict[str, Any],
+        addr: int,
+    ) -> int:
         bitwise = isinstance(data, util.BitwiseBytes)
         if not bitwise:
             raise RuntimeError
@@ -162,14 +198,20 @@ class BitFlags(DataType):
 class BitWord(DataType):
     """Reads a number of bits from the data"""
 
+    length: int
     backupname = "BitWord"
 
-    def __init__(self, length=None, **kwargs) -> None:
+    def __init__(self, length: int, **kwargs: Any) -> None:
         util.validate_address_or_length(length, 1)
         self.length = length
         super().__init__(**kwargs)
 
-    def _parse(self, data, context, addr):
+    def _parse(
+        self,
+        data: bytes | util.BitwiseBytes,
+        context: dict[str, Any],
+        addr: int,
+    ) -> int:
         bitwise = isinstance(data, util.BitwiseBytes)
         if not bitwise:
             raise RuntimeError

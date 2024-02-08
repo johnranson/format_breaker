@@ -1,11 +1,9 @@
 """This module contains the basic datatypes with no decoding"""
 
 from __future__ import annotations
+from typing import ClassVar, Any
 from copy import copy
-from typing import ClassVar, TypeVar
 from formatbreaker import util
-
-T = TypeVar("T")
 
 
 class FBError(Exception):
@@ -15,17 +13,17 @@ class FBError(Exception):
     exception and try something else.
     """
 
-    pass
-
 
 class DataType:
     """This is the base class for all objects that parse data"""
 
-    name: str
-    address: int
-    backupname: ClassVar[str] = None
+    name: str | None
+    address: int | None
+    backupname: ClassVar[str | None] = None
 
-    def __init__(self, name: str = None, address: int = None) -> None:
+    def __init__(
+        self, name: str | None = None, address: int | None = None
+    ) -> None:
         """Basic code storing the name and address
 
         Args:
@@ -45,7 +43,10 @@ class DataType:
             self.address = address
 
     def _parse(
-        self, data: bytes | util.BitwiseBytes, context: dict[str, T], addr: int
+        self,
+        data: bytes | util.BitwiseBytes,
+        context: dict[str, Any],
+        addr: int,
     ) -> int:
         """A method for parsing data provided at the address provided. This
             is data type dependent. Stores the parsed value in the context
@@ -60,11 +61,15 @@ class DataType:
         Returns:
             addr (int): The next bite or byte address after the parsed data
         """
+        # pylint: disable=unused-argument
         util.validate_address_or_length(addr)
         return addr
 
     def _space_and_parse(
-        self, data: bytes | util.BitwiseBytes, context: dict[str, T], addr: int
+        self,
+        data: bytes | util.BitwiseBytes,
+        context: dict[str, Any],
+        addr: int,
     ) -> int:
         """If the DataType has a fixed address, read to the address and save
             it as a spacer value in the context. Then call the _parse
@@ -87,7 +92,7 @@ class DataType:
                 addr = util.spacer(data, context, addr, spacer_size)
         return self._parse(data, context, addr)
 
-    def parse(self, data: bytes | util.BitwiseBytes):
+    def parse(self, data: bytes | util.BitwiseBytes) -> dict[str, Any]:
         """Parse the provided data starting from address 0
 
         Args:
@@ -96,11 +101,13 @@ class DataType:
         Returns:
             dict: A dictionary of field names and parsed values
         """
-        context = {}
+        context: dict[str, Any] = {}
         self._space_and_parse(data, context, 0)
         return context
 
-    def __call__(self, name: str = None, address: int = None) -> DataType:
+    def __call__(
+        self, name: str | None = None, address: int | None = None
+    ) -> DataType:
         """Allows instances to be callable to easily make a copy of the
             instance with a new name and/or address
 
@@ -124,7 +131,13 @@ class DataType:
             b.address = address
         return b
 
-    def _store(self, context, data, addr=None, name=None):
+    def _store(
+        self,
+        context: dict[str, Any],
+        data: Any,
+        addr: int | None = None,
+        name: str | None = None,
+    ) -> None:
         """Decode the parsed data and store the value in a unique name
 
         Args:
@@ -154,7 +167,7 @@ class DataType:
 
         context[name] = self._decode(data)
 
-    def _update(self, context, data):
+    def _update(self, context: dict[str, Any], data: dict[str, Any]):
         """Decode a dictionary and store the new values in the provided
             dictionary
 
@@ -167,7 +180,7 @@ class DataType:
         for key in decoded_data:
             self._store(context, decoded_data[key], name=key)
 
-    def _decode(self, data):
+    def _decode(self, data: Any) -> Any:
         """A function for converting data to a different data type, run on the
             parsed output. Defaults to passing through the data unchanged.
             This should be overridden as needed by subclasses.
@@ -192,9 +205,9 @@ class Chunk(DataType):
     def __init__(
         self,
         *args: list[DataType],
-        relative: bool = None,
-        bitwise: bool = None,
-        **kwargs,
+        relative: bool | None = None,
+        bitwise: bool | None = None,
+        **kwargs: Any,
     ) -> None:
         """Holds any number of DataType elements and parses them in order.
 
@@ -229,7 +242,10 @@ class Chunk(DataType):
         super().__init__(**kwargs)
 
     def _parse(
-        self, data: bytes | util.BitwiseBytes, context: dict[str, T], addr: int
+        self,
+        data: bytes | util.BitwiseBytes,
+        context: dict[str, Any],
+        addr: int,
     ) -> int:
         """Parse the data using each element provided sequentially.
 
