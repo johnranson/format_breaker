@@ -18,19 +18,20 @@ class ByteFlag(Byte):
     def __init__(
         self, true_value: bytes | int | None = None, **kwargs: Any
     ) -> None:
-        if true_value:
-            if isinstance(true_value, bytes):
-                if len(true_value) != 1:
-                    raise ValueError
-                self.true_value = true_value[0]
-            elif isinstance(true_value, int):
-                if true_value < 0 or true_value > 255:
-                    raise ValueError
-                self.true_value = true_value
-            else:
-                raise TypeError
+
+        if isinstance(true_value, bytes):
+            if len(true_value) != 1:
+                raise ValueError
+            self.true_value = true_value[0]
+        elif isinstance(true_value, int):
+            self.true_value = true_value
+            if self.true_value < 0 or self.true_value > 255:
+                raise ValueError
+        elif true_value is None:
+            self.true_value = None
         else:
-            true_value = None
+            raise TypeError
+
         super().__init__(**kwargs)
 
     def _decode(self, data: bytes) -> bool:
