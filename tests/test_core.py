@@ -118,10 +118,14 @@ class TestChunk:
 
     def test_empty_chunk_returns_empty_dict_on_parsing(self, empty_chunk):
         assert empty_chunk.parse(b"abc") == {}
-        
+
     @pytest.fixture
     def sequential_chunk(self):
-        return Chunk(TestChunk.MockType(3, "foo"), TestChunk.MockType(5, "bar"), TestChunk.MockType(1, "baz"))
+        return Chunk(
+            TestChunk.MockType(3, "foo"),
+            TestChunk.MockType(5, "bar"),
+            TestChunk.MockType(1, "baz"),
+        )
 
     def test_chunk_returns_parsing_results_from_all_elements(self, sequential_chunk):
         result = sequential_chunk.parse(b"12354234562")

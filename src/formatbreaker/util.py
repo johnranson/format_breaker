@@ -56,6 +56,7 @@ def spacer(data, context, addr, spacer_size):
     context[spacer_name] = bytes(data[addr:end_addr])
     return end_addr
 
+
 class BitwiseBytes:
     """Allows treating bytes as a subscriptable bit list"""
 
@@ -105,7 +106,7 @@ class BitwiseBytes:
 
     def __bytes__(self):
         if self.length == 0:
-            return b''
+            return b""
 
         if self.stop_bit == 0:
             last_byte_addr = self.stop_byte - 1
@@ -129,7 +130,7 @@ class BitwiseBytes:
                 mid_bytes = self.data[self.start_byte + 1 : last_byte_addr]
 
             data = first_byte + mid_bytes + last_byte
-            
+
             if self.stop_bit == 0:
                 result = data
             else:
@@ -150,4 +151,6 @@ class BitwiseBytes:
         return int.from_bytes(bytes(self), "big", signed=False)
 
     def __eq__(self, other):
-        return (self.length == other.length) and (self.length == 0 or (int(self) == int(other)))
+        return (self.length == other.length) and (
+            self.length == 0 or (int(self) == int(other))
+        )

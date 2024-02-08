@@ -9,14 +9,16 @@ class FBError(Exception):
     types can fail to be parsed, and the top level code will catch the
     exception and try something else.
     """
+
     pass
 
 
-class DataType():
+class DataType:
     """This is the base class for all objects that parse data"""
+
     name: str
     address: int
-    
+
     backupname = None
 
     def __init__(self, name=None, address=None, copy_source=None) -> None:
@@ -61,7 +63,6 @@ class DataType():
             addr (int): The next bite or byte address after the parsed data
         """
         return addr
-
 
     def _space_and_parse(self, data, context, addr):
         """If the DataType has a fixed address, read to the address and save
@@ -130,19 +131,19 @@ class DataType():
         Raises:
             RuntimeError: If no name can be found, an exception is raised
         """
-        
+
         if name:
             pass
         elif self.name:
             name = self.name
         elif self.backupname and (addr is not None):
-            name = self.backupname + '_' + hex(addr)
+            name = self.backupname + "_" + hex(addr)
         else:
             raise RuntimeError("Attempted to store unnamed data")
-            
+
         name = util.uniquify_name(name, context)
-            
-        context[name] = self._decode(data)           
+
+        context[name] = self._decode(data)
 
     def _update(self, context, data):
         """Decode a dictionary and store the new values in the provided
