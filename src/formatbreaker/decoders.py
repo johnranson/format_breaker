@@ -12,7 +12,9 @@ class ByteFlag(Byte):
 
     backupname = "Flag"
 
-    def __init__(self, value=None, name=None, address=None, copy_source=None) -> None:
+    def __init__(
+        self, value=None, name=None, address=None, copy_source=None
+    ) -> None:
         if copy_source:
             self.value = copy_source.value
         if value:
@@ -32,7 +34,9 @@ class BitConst(Bit):
 
     backupname = "Const"
 
-    def __init__(self, value=None, name=None, address=None, copy_source=None) -> None:
+    def __init__(
+        self, value=None, name=None, address=None, copy_source=None
+    ) -> None:
         if copy_source:
             self.value = copy_source.value
         self.value = bool(value)

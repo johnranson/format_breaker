@@ -77,7 +77,9 @@ class BitwiseBytes:
         elif isinstance(value, bytes):
             self.data = value
             if start_byte is not None:
-                if not isinstance(start_byte, int) or not isinstance(start_bit, int):
+                if not isinstance(start_byte, int) or not isinstance(
+                    start_bit, int
+                ):
                     raise ValueError
                 if start_byte < 0 or start_bit > 7:
                     raise IndexError
@@ -156,11 +158,18 @@ class BitwiseBytes:
 
         if single_byte:
             result = bytes(
-                [(self.data[self.start_byte] & (0xFF >> self.start_bit)) >> stop_shift]
+                [
+                    (self.data[self.start_byte] & (0xFF >> self.start_bit))
+                    >> stop_shift
+                ]
             )
         else:
-            first_byte = bytes([self.data[self.start_byte] & (0xFF >> self.start_bit)])
-            last_byte = bytes([self.data[last_byte_addr] & (0xFF << stop_shift)])
+            first_byte = bytes(
+                [self.data[self.start_byte] & (0xFF >> self.start_bit)]
+            )
+            last_byte = bytes(
+                [self.data[last_byte_addr] & (0xFF << stop_shift)]
+            )
             mid_bytes = b""
             if multi_byte:
                 mid_bytes = self.data[self.start_byte + 1 : last_byte_addr]
@@ -192,11 +201,11 @@ class BitwiseBytes:
         )
 
 
-def validate_address_or_length(address, min=0, max=None):
+def validate_address_or_length(address, amin=0, amax=None):
     if not isinstance(address, int):
         raise TypeError
-    if address < min:
+    if address < amin:
         raise IndexError
     if max is not None:
-        if address > max:
+        if address > amax:
             raise IndexError
