@@ -5,65 +5,6 @@ from typing import Any, overload
 from operator import add
 
 
-def uniquify_name(name: str, context: dict[str, Any]) -> str:
-    """This adds " N" to a string key if the key already exists in the
-        dictionary, where N is the first natural number that makes the
-        key unique
-
-    Args:
-        name (string): A string
-        context (dictionary): Any dictionary
-
-    Returns:
-        string: A unique string key
-    """
-    new_name = name
-    i = 1
-    while new_name in context:
-        new_name = name + " " + str(i)
-        i = i + 1
-    return new_name
-
-
-def spacer(
-    data: bytes | BitwiseBytes,
-    context: dict[str, Any],
-    addr: int,
-    spacer_size: int,
-) -> int:
-    """Reads a spacer of a certain length from the data, and saves it
-        to the context dictionary
-
-    Args:
-        data (bytes or BitwiseBytes): Data being parsed
-        context (dict): The dictionary where results are stored
-        abs_addr (int): The current absolute bit or byte address in the data
-        spacer_size (_type_): The size in bits or bytes of the spacer
-
-    Returns:
-        abs_addr (int): The bit or byte address following the spacer
-    """
-    end_addr = addr + spacer_size
-
-    if addr < 0:
-        raise IndexError
-    if end_addr > len(data):
-        raise IndexError
-    if spacer_size == 0:
-        return end_addr
-    if spacer_size < 0:
-        raise ValueError
-    if spacer_size > 1:
-        spacer_name = "spacer_" + hex(addr) + "-" + hex(addr + spacer_size - 1)
-    else:
-        spacer_name = "spacer_" + hex(addr)
-
-    spacer_name = uniquify_name(spacer_name, context)
-
-    context[spacer_name] = bytes(data[addr:end_addr])
-    return end_addr
-
-
 class BitwiseBytes:
     """Allows treating bytes as a subscriptable bit list"""
 
@@ -77,16 +18,12 @@ class BitwiseBytes:
     def __init__(
         self,
         value: bytes | BitwiseBytes,
-        start_byte: int | None = None,
-        start_bit: int | None = None,
+        start_byte: int = 0,
+        start_bit: int = 0,
         length: int | None = None,
     ) -> None:
         if isinstance(value, BitwiseBytes):
-            if (
-                (length is not None)
-                or (start_bit is not None)
-                or (start_byte is not None)
-            ):
+            if (length is not None) or (start_bit > 0) or (start_byte > 0):
                 raise ValueError
             self.data = value.data
             self.start_byte = value.start_byte
@@ -96,40 +33,39 @@ class BitwiseBytes:
             self.length = value.length
         elif isinstance(value, bytes):
             self.data = value
-            if start_byte is not None:
-                if not isinstance(start_byte, int) or not isinstance(
-                    start_bit, int
-                ):
-                    raise ValueError
-                if start_byte < 0 or start_bit > 7:
-                    raise IndexError
-            self.start_byte = start_byte if start_byte else 0
 
-            if start_bit is not None:
-                if not isinstance(start_bit, int):
-                    raise ValueError
-                if start_bit < 0:
-                    raise IndexError
-                self.start_byte = self.start_byte + start_bit // 8
-            self.start_bit = start_bit % 8 if start_bit else 0
+            if not isinstance(start_byte, int):
+                raise ValueError
+            if not isinstance(start_bit, int):
+                raise ValueError
+            if not (isinstance(length, int) or length is None):
+                raise ValueError
+
+            if start_byte > 0 and start_bit > 7:
+                raise IndexError
+            if start_byte < 0 or start_bit < 0:
+                raise IndexError
+
+            self.start_byte = start_byte + start_bit // 8
+            self.start_bit = start_bit % 8
 
             if length is not None:
                 if length < 0:
                     raise IndexError
                 self.length = length
             else:
-                self.length = len(value) * 8
+                self.length = (
+                    len(value) * 8 - self.start_bit - self.start_byte * 8
+                )
 
-            self.stop_bit = self.length % 8 + self.start_bit
-            self.stop_byte = self.length // 8 + self.start_byte
-            if self.stop_bit > 7:
-                self.stop_byte += 1
-                self.stop_bit -= 8
+            last_bit = self.start_bit + self.start_byte * 8 + self.length
 
-            if self.stop_byte > len(value) or (
-                self.stop_byte == len(value) and self.stop_bit > 0
-            ):
+            if last_bit > len(value) * 8:
                 raise IndexError
+
+            self.stop_bit = self.length + self.start_bit
+            self.stop_byte = self.stop_bit // 8 + self.start_byte
+            self.stop_bit = self.stop_bit % 8
         else:
             raise ValueError
 
@@ -239,3 +175,62 @@ def validate_address_or_length(
     if amax is not None:
         if address > amax:
             raise IndexError
+
+
+def uniquify_name(name: str, context: dict[str, Any]) -> str:
+    """This adds " N" to a string key if the key already exists in the
+        dictionary, where N is the first natural number that makes the
+        key unique
+
+    Args:
+        name (string): A string
+        context (dictionary): Any dictionary
+
+    Returns:
+        string: A unique string key
+    """
+    new_name = name
+    i = 1
+    while new_name in context:
+        new_name = name + " " + str(i)
+        i = i + 1
+    return new_name
+
+
+def spacer(
+    data: bytes | BitwiseBytes,
+    context: dict[str, Any],
+    addr: int,
+    spacer_size: int,
+) -> int:
+    """Reads a spacer of a certain length from the data, and saves it
+        to the context dictionary
+
+    Args:
+        data (bytes or BitwiseBytes): Data being parsed
+        context (dict): The dictionary where results are stored
+        abs_addr (int): The current absolute bit or byte address in the data
+        spacer_size (_type_): The size in bits or bytes of the spacer
+
+    Returns:
+        abs_addr (int): The bit or byte address following the spacer
+    """
+    end_addr = addr + spacer_size
+
+    if addr < 0:
+        raise IndexError
+    if end_addr > len(data):
+        raise IndexError
+    if spacer_size == 0:
+        return end_addr
+    if spacer_size < 0:
+        raise ValueError
+    if spacer_size > 1:
+        spacer_name = "spacer_" + hex(addr) + "-" + hex(addr + spacer_size - 1)
+    else:
+        spacer_name = "spacer_" + hex(addr)
+
+    spacer_name = uniquify_name(spacer_name, context)
+
+    context[spacer_name] = bytes(data[addr:end_addr])
+    return end_addr

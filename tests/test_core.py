@@ -130,9 +130,15 @@ class TestChunk:
             TestChunk.MockType(1, "baz"),
         )
 
-    def test_chunk_returns_parsing_results_from_all_elements(self, sequential_chunk):
+    def test_chunk_returns_parsing_results_from_all_elements(
+        self, sequential_chunk
+    ):
         result = sequential_chunk.parse(b"12354234562")
-        assert result == {"mock_0x0": "foo", "mock_0x3": "bar", "mock_0x8": "baz"}
+        assert result == {
+            "mock_0x0": "foo",
+            "mock_0x3": "bar",
+            "mock_0x8": "baz",
+        }
 
     def test_chunk_returns_error_if_parsing_elements_parse_past_end_of_input(
         self, sequential_chunk

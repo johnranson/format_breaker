@@ -32,15 +32,15 @@ class DataType:
             address (integer, optional): The address in the data which
                 this instance should read from. Defaults to None.
         """
-        self.name = None
-        self.address = None
-        if name:
+        if name is not None:
             if not isinstance(name, str):
                 raise TypeError
-            self.name = name
         if address is not None:
             util.validate_address_or_length(address)
-            self.address = address
+
+        self.address = address
+        self.name = name
+
 
     def _parse(
         self,
@@ -200,13 +200,13 @@ class Chunk(DataType):
 
     bitwise: bool
     relative: bool
-    elements: list[DataType]
+    elements: tuple[DataType, ...]
 
     def __init__(
         self,
-        *args: list[DataType],
-        relative: bool | None = None,
-        bitwise: bool | None = None,
+        *args: DataType,
+        relative: bool = True,
+        bitwise: bool = False,
         **kwargs: Any,
     ) -> None:
         """Holds any number of DataType elements and parses them in order.
@@ -220,25 +220,20 @@ class Chunk(DataType):
         Raises:
             ValueError: one of the elements provided is not a DataType
         """
-        self.bitwise = False
-        self.relative = True
-        self.elements = []
-        if relative is not None:
-            if not isinstance(relative, bool):
-                raise TypeError
-            self.relative = relative
-        if bitwise is not None:
-            if not isinstance(bitwise, bool):
-                raise TypeError
-            self.bitwise = bitwise
-        if args:
-            self.elements = []
-            for item in args:
-                if isinstance(item, DataType):
-                    self.elements.append(item)
-                else:
-                    raise TypeError
-        print(kwargs)
+        if not isinstance(relative, bool):
+            raise TypeError
+        if not isinstance(bitwise, bool):
+            raise TypeError
+        if not isinstance(args, tuple):
+            print(args)
+            raise TypeError
+        if not all(isinstance(item, DataType) for item in args):
+            raise TypeError
+
+        self.relative = relative
+        self.bitwise = bitwise
+        self.elements = args
+
         super().__init__(**kwargs)
 
     def _parse(
