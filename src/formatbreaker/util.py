@@ -74,8 +74,8 @@ class BitwiseBytes:
             self.stop_byte = value.stop_byte
             self.stop_bit = value.stop_bit
             self.length = value.length
-        else:
-            self.data = bytes(value)
+        elif isinstance(value, bytes):
+            self.data = value
             if start_byte is not None:
                 if not isinstance(start_byte, int) or not isinstance(start_bit, int):
                     raise ValueError
@@ -108,6 +108,8 @@ class BitwiseBytes:
                 self.stop_byte == len(value) and self.stop_bit > 0
             ):
                 raise IndexError
+        else:
+            raise ValueError
 
     def __getitem__(self, item):
         if isinstance(item, slice):
@@ -116,7 +118,7 @@ class BitwiseBytes:
             assert length >= 0
             if step != 1:
                 raise NotImplementedError
-            start_bit = (self.start_bit + start % 8) % 8
+            start_bit = (self.start_bit + start) % 8
             start_byte = self.start_byte + (start + self.start_bit) // 8
 
             return BitwiseBytes(self.data, start_byte, start_bit, length)
@@ -188,3 +190,13 @@ class BitwiseBytes:
         return (self.length == other.length) and (
             self.length == 0 or (int(self) == int(other))
         )
+
+
+def validate_address_or_length(address, min=0, max=None):
+    if not isinstance(address, int):
+        raise TypeError
+    if address < min:
+        raise IndexError
+    if max is not None:
+        if address > max:
+            raise IndexError

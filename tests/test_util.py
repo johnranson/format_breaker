@@ -62,11 +62,11 @@ class TestBitwiseBytes:
     @pytest.fixture
     def bytedata(self):
         return b"\xff\x0f\x00\xff"
-    
+
     @pytest.fixture
     def data(self, bytedata):
         return BitwiseBytes(bytedata)
-    
+
     def test_invalid_constructor_inputs_raise_error(self, bytedata):
         with pytest.raises(ValueError):
             BitwiseBytes(bytedata, 0, None, 1)
@@ -77,18 +77,18 @@ class TestBitwiseBytes:
         with pytest.raises(IndexError):
             BitwiseBytes(bytedata, -1, 1, 1)
         with pytest.raises(IndexError):
-            BitwiseBytes(bytedata, 1, 1, -1)    
+            BitwiseBytes(bytedata, 1, 1, -1)
         with pytest.raises(ValueError):
             BitwiseBytes(bytedata, 0, None, True)
-            
+
     def test_constructor_stop_bit_logic_ok(self, bytedata):
         with pytest.raises(IndexError):
             BitwiseBytes(bytedata, 4, 0, 1)
-        assert bytes(BitwiseBytes(bytedata, 4, 0, 0)) == b''
-        
+        assert bytes(BitwiseBytes(bytedata, 4, 0, 0)) == b""
+
     def test_converting_back_to_bytes_is_invariant(self, data, bytedata):
         assert bytes(data) == bytedata
-        
+
     def test_copy_constructor_is_invariant(self, data):
         copy = BitwiseBytes(data)
         assert copy == data

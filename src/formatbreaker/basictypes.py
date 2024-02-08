@@ -30,16 +30,10 @@ class Bytes(DataType):
 
     backupname = "Bytes"
 
-    def __init__(self, length=None, name=None, address=None, copy_source=None) -> None:
-        if copy_source:
-            self.length = copy_source.length
-        if length:
-            if not isinstance(length, int):
-                raise ValueError
-            if length < 1:
-                raise ValueError
-            self.length = length
-        super().__init__(name, address, copy_source)
+    def __init__(self, length, **kwargs) -> None:
+        util.validate_address_or_length(length, 1)
+        self.length = length
+        super().__init__(**kwargs)
 
     def _parse(self, data, context, addr):
         bitwise = isinstance(data, util.BitwiseBytes)
@@ -65,14 +59,11 @@ class VarBytes(DataType):
 
     backupname = "VarBytes"
 
-    def __init__(
-        self, name=None, address=None, length_key=None, copy_source=None
-    ) -> None:
-        if copy_source:
-            self.length_key = copy_source.length_key
-        if length_key:
-            self.length_key = length_key
-        super().__init__(name, address, copy_source)
+    def __init__(self, length_key, **kwargs) -> None:
+        if not isinstance(length_key, str):
+            raise TypeError
+        self.length_key = length_key
+        super().__init__(**kwargs)
 
     def _parse(self, data, context, addr):
         bitwise = isinstance(data, util.BitwiseBytes)
@@ -145,16 +136,11 @@ class BitFlags(DataType):
 
     backupname = "BitFlags"
 
-    def __init__(self, length=None, name=None, address=None, copy_source=None) -> None:
-        if copy_source:
-            self.length = copy_source.length
-        if length:
-            if not isinstance(length, int):
-                raise ValueError
-            if length < 1:
-                raise ValueError
-            self.length = length
-        super().__init__(name, address, copy_source)
+    def __init__(self, length, **kwargs) -> None:
+
+        util.validate_address_or_length(length, 1)
+        self.length = length
+        super().__init__(**kwargs)
 
     def _parse(self, data, context, addr):
         bitwise = isinstance(data, util.BitwiseBytes)
@@ -178,16 +164,10 @@ class BitWord(DataType):
 
     backupname = "BitWord"
 
-    def __init__(self, length=None, name=None, address=None, copy_source=None) -> None:
-        if copy_source:
-            self.length = copy_source.length
-        if length:
-            if not isinstance(length, int):
-                raise ValueError
-            if length < 1:
-                raise ValueError
-            self.length = length
-        super().__init__(name, address, copy_source)
+    def __init__(self, length=None, **kwargs) -> None:
+        util.validate_address_or_length(length, 1)
+        self.length = length
+        super().__init__(**kwargs)
 
     def _parse(self, data, context, addr):
         bitwise = isinstance(data, util.BitwiseBytes)

@@ -2,6 +2,11 @@ import pytest
 from formatbreaker.core import DataType, FBError, Chunk
 
 
+@pytest.fixture
+def context():
+    return {}
+
+
 class TestDataType:
 
     @pytest.fixture
@@ -26,19 +31,19 @@ class TestDataType:
         assert copy_test_type.address is None
 
     def test_bad_constructor_types_raise_exceptions(self):
-        with pytest.raises(ValueError):
+        with pytest.raises(TypeError):
             DataType("name", "address")
 
-        with pytest.raises(ValueError):
+        with pytest.raises(TypeError):
             DataType(3, 3)
+
+    def test_negative_address_raises_exception(self):
+        with pytest.raises(IndexError):
+            DataType("name", -1)
 
     @pytest.fixture
     def named_dt(self):
         return DataType("name", 3)
-
-    @pytest.fixture
-    def context(self):
-        return {}
 
     def test_constructor_with_arguments_saves_name_and_address(self, named_dt):
         assert named_dt.name == "name"
@@ -100,12 +105,10 @@ class TestChunk:
     class MockType(DataType):
         backupname = "mock"
 
-        def __init__(
-            self, length=None, value=None, name=None, address=None, copy_source=None
-        ) -> None:
+        def __init__(self, length=None, value=None, **kwargs) -> None:
             self.value = value
             self.length = length
-            super().__init__(name, address, copy_source)
+            super().__init__(**kwargs)
 
         def _parse(self, data, context, addr):
             end_addr = addr + self.length
@@ -157,4 +160,43 @@ class TestChunk:
             "mock_0x8": "baz",
             "spacer_0x9": b"\x00",
             "mock_0xa": "qux",
+        }
+
+    def test_nested_chunks_produce_expected_results(self, addressed_chunk):
+        cnk = Chunk(
+            addressed_chunk,
+            addressed_chunk("name"),
+            addressed_chunk("name", 40),
+            addressed_chunk(address=60),
+        )
+
+        result = cnk.parse(bytes(range(256)))
+
+        assert result == {
+            "mock_0x0": "foo",
+            "mock_0x3": "bar",
+            "mock_0x8": "baz",
+            "spacer_0x9": b"\t",
+            "mock_0xa": "qux",
+            "name": {
+                "mock_0x0": "foo",
+                "mock_0x3": "bar",
+                "mock_0x8": "baz",
+                "spacer_0x9": b"\x15",
+                "mock_0xa": "qux",
+            },
+            "spacer_0x18-0x27": b"\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f !\"#$%&'",
+            "name 1": {
+                "mock_0x0": "foo",
+                "mock_0x3": "bar",
+                "mock_0x8": "baz",
+                "spacer_0x9": b"1",
+                "mock_0xa": "qux",
+            },
+            "spacer_0x34-0x3b": b"456789:;",
+            "mock_0x0 1": "foo",
+            "mock_0x3 1": "bar",
+            "mock_0x8 1": "baz",
+            "spacer_0x9 1": b"E",
+            "mock_0xa 1": "qux",
         }

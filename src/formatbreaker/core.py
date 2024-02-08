@@ -1,6 +1,7 @@
 """This module contains the basic datatypes with no decoding"""
 
 from formatbreaker import util
+from copy import copy
 
 
 class FBError(Exception):
@@ -21,7 +22,7 @@ class DataType:
 
     backupname = None
 
-    def __init__(self, name=None, address=None, copy_source=None) -> None:
+    def __init__(self, name=None, address=None) -> None:
         """Basic code storing the name and address
 
         Args:
@@ -29,23 +30,15 @@ class DataType:
                 the context dictionary during parsing. Defaults to None.
             address (integer, optional): The address in the data which
                 this instance should read from. Defaults to None.
-            copy_source (DataType, optional): An existing instance which
-                should be copied
         """
         self.name = None
         self.address = None
-        if copy_source:
-            if not isinstance(copy_source, DataType):
-                raise ValueError
-            self.name = copy_source.name
-            self.address = copy_source.address
         if name:
             if not isinstance(name, str):
-                raise ValueError
+                raise TypeError
             self.name = name
         if address is not None:
-            if not isinstance(address, int):
-                raise ValueError
+            util.validate_address_or_length(address)
             self.address = address
 
     def _parse(self, data, context, addr):
@@ -62,6 +55,7 @@ class DataType:
         Returns:
             addr (int): The next bite or byte address after the parsed data
         """
+        util.validate_address_or_length(addr)
         return addr
 
     def _space_and_parse(self, data, context, addr):
@@ -77,6 +71,7 @@ class DataType:
         Returns:
             addr (int): The next bite or byte address after the parsed data
         """
+        util.validate_address_or_length(addr)
         if self.address:
             if addr > self.address:
                 raise FBError("Target address has already been passed")
@@ -98,23 +93,29 @@ class DataType:
         self._space_and_parse(data, context, 0)
         return context
 
-    def __call__(self, new_name=None, new_address=None):
+    def __call__(self, name=None, address=None):
         """Allows instances to be callable to easily make a copy of the
             instance with a new name and/or address
 
         Args:
-            new_name (string, optional): Replaces the name of the copied
+            name (string, optional): Replaces the name of the copied
                 object if defined. Defaults to None.
-            new_address (int, optional): Replaces the address of the copied
+            address (int, optional): Replaces the address of the copied
                 object if defined. Defaults to None.
 
         Returns:
             DataType: A copy of the existing object with the name and address
                 changed.
         """
-        name = new_name if new_name else self.name
-        address = new_address if new_address else self.address
-        return type(self)(name=name, address=address, copy_source=self)
+        b = copy(self)
+        if name is not None:
+            if not isinstance(name, str):
+                raise TypeError
+            b.name = name
+        if address is not None:
+            util.validate_address_or_length(address)
+            b.address = address
+        return b
 
     def _store(self, context, data, addr=None, name=None):
         """Decode the parsed data and store the value in a unique name
@@ -137,6 +138,7 @@ class DataType:
         elif self.name:
             name = self.name
         elif self.backupname and (addr is not None):
+            util.validate_address_or_length(addr)
             name = self.backupname + "_" + hex(addr)
         else:
             raise RuntimeError("Attempted to store unnamed data")
@@ -175,15 +177,7 @@ class DataType:
 class Chunk(DataType):
     """A container that holds ordered data fields and provides a mechanism for parsing them in order"""
 
-    def __init__(
-        self,
-        *args,
-        relative=None,
-        name=None,
-        address=None,
-        copy_source=None,
-        bitwise=None,
-    ) -> None:
+    def __init__(self, *args, relative=None, bitwise=None, **kwargs) -> None:
         """Holds any number of DataType elements and parses them in order.
 
         Args:
@@ -191,13 +185,6 @@ class Chunk(DataType):
             relative (bool, optional): True if addresses for the contained
                 elements are relative to this chunk. Defaults to "true" if not
                 defined.
-            name (string, optional): Key where the decoded data is stored.
-                If not defined, decoded parsed data is stored directly in the
-                parsing context
-            address (integer, optional): The address in the data which
-                this instance should read from. Defaults to None.
-            copy_source (DataType, optional): An existing instance which
-                should be copied
 
         Raises:
             ValueError: one of the elements provided is not a DataType
@@ -205,15 +192,13 @@ class Chunk(DataType):
         self.bitwise = False
         self.relative = True
         self.elements = []
-        if copy_source:
-            self.bitwise = copy_source.bitwise
-            self.relative = copy_source.relative
-            self.elements = copy_source.elements
         if relative is not None:
             if not isinstance(relative, bool):
-                raise ValueError
+                raise TypeError
             self.relative = relative
         if bitwise is not None:
+            if not isinstance(bitwise, bool):
+                raise TypeError
             self.bitwise = bitwise
         if args:
             self.elements = []
@@ -221,8 +206,9 @@ class Chunk(DataType):
                 if isinstance(item, DataType):
                     self.elements.append(item)
                 else:
-                    raise ValueError
-        super().__init__(name, address, copy_source)
+                    raise TypeError
+        print(kwargs)
+        super().__init__(**kwargs)
 
     def _parse(self, data, context, addr):
         """Parse the data using each element provided sequentially.
@@ -235,6 +221,8 @@ class Chunk(DataType):
         Returns:
             addr (int): The bite or byte address after the parsed data
         """
+        util.validate_address_or_length(addr)
+
         orig_addr = addr
 
         bitwisedata = isinstance(data, util.BitwiseBytes)
