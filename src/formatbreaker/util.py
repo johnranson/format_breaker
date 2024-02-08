@@ -62,7 +62,11 @@ class BitwiseBytes:
 
     def __init__(self, value, start_byte=None, start_bit=None, length=None):
         if isinstance(value, BitwiseBytes):
-            if (length is not None) or (start_bit is not None) or (start_byte is not None):
+            if (
+                (length is not None)
+                or (start_bit is not None)
+                or (start_byte is not None)
+            ):
                 raise ValueError
             self.data = value.data
             self.start_byte = value.start_byte
@@ -78,16 +82,18 @@ class BitwiseBytes:
                 if start_byte < 0 or start_bit > 7:
                     raise IndexError
             self.start_byte = start_byte if start_byte else 0
-            
+
             if start_bit is not None:
                 if not isinstance(start_bit, int):
                     raise ValueError
-                if  start_bit < 0:
+                if start_bit < 0:
                     raise IndexError
                 self.start_byte = self.start_byte + start_bit // 8
             self.start_bit = start_bit % 8 if start_bit else 0
 
             if length is not None:
+                if length < 0:
+                    raise IndexError
                 self.length = length
             else:
                 self.length = len(value) * 8
@@ -97,8 +103,10 @@ class BitwiseBytes:
             if self.stop_bit > 7:
                 self.stop_byte += 1
                 self.stop_bit -= 8
-                
-            if self.stop_byte > len(value) or (self.stop_byte == len(value) and self.stop_bit > 0):
+
+            if self.stop_byte > len(value) or (
+                self.stop_byte == len(value) and self.stop_bit > 0
+            ):
                 raise IndexError
 
     def __getitem__(self, item):

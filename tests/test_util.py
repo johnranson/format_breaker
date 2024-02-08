@@ -72,6 +72,12 @@ class TestBitwiseBytes:
             BitwiseBytes(bytedata, 0, None, 1)
         with pytest.raises(IndexError):
             BitwiseBytes(bytedata, 1, 9, 1)
+        with pytest.raises(IndexError):
+            BitwiseBytes(bytedata, 1, -1, 1)
+        with pytest.raises(IndexError):
+            BitwiseBytes(bytedata, -1, 1, 1)
+        with pytest.raises(IndexError):
+            BitwiseBytes(bytedata, 1, 1, -1)    
         with pytest.raises(ValueError):
             BitwiseBytes(bytedata, 0, None, True)
             
