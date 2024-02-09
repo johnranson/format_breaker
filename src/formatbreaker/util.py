@@ -168,6 +168,24 @@ class BitwiseBytes:
 def validate_address_or_length(
     address: int, amin: int = 0, amax: int | None = None
 ) -> None:
+    """_summary_
+
+    Parameters
+    ----------
+    address : int
+        The address to be validated
+    amin : int, default 0
+        The minimum valid value for `address`
+    amax : int | None, optional
+        The maximum valid value for `address` if defined
+
+    Raises
+    ------
+    TypeError
+        `address` is not int type
+    IndexError
+        `address` is not in [`min`, `max`]
+    """    
     if not isinstance(address, int):
         raise TypeError
     if address < amin:

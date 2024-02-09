@@ -1,5 +1,5 @@
 import pytest
-from formatbreaker.core import DataType, FBError, Chunk
+from formatbreaker.core import Parser, FBError, Batch
 
 
 @pytest.fixture
@@ -7,16 +7,16 @@ def context():
     return {}
 
 
-class TestDataType:
+class TestParser:
 
     @pytest.fixture
     def default_dt(self):
-        return DataType()
+        return Parser()
 
     def test_constructor_defaults_to_no_name_and_address(self, default_dt):
 
-        assert default_dt.name is None
-        assert default_dt.address is None
+        assert default_dt._name is None
+        assert default_dt._address is None
 
         context = {}
         with pytest.raises(RuntimeError):
@@ -27,35 +27,35 @@ class TestDataType:
         copy_test_type = default_dt()
 
         assert copy_test_type is not default_dt
-        assert copy_test_type.name is None
-        assert copy_test_type.address is None
+        assert copy_test_type._name is None
+        assert copy_test_type._address is None
 
     def test_bad_constructor_types_raise_exceptions(self):
         with pytest.raises(TypeError):
-            DataType("name", "address")
+            Parser("name", "address")
 
         with pytest.raises(TypeError):
-            DataType(3, 3)
+            Parser(3, 3)
 
     def test_negative_address_raises_exception(self):
         with pytest.raises(IndexError):
-            DataType("name", -1)
+            Parser("name", -1)
 
     @pytest.fixture
     def named_dt(self):
-        return DataType("name", 3)
+        return Parser("name", 3)
 
     def test_constructor_with_arguments_saves_name_and_address(self, named_dt):
-        assert named_dt.name == "name"
-        assert named_dt.address == 3
+        assert named_dt._name == "name"
+        assert named_dt._address == 3
         assert named_dt._decode("123") == "123"
 
     def test_copy_works_after_constructor_with_name_and_address(self, named_dt):
         copy_test_type = named_dt()
 
         assert copy_test_type is not named_dt
-        assert copy_test_type.name == "name"
-        assert copy_test_type.address == 3
+        assert copy_test_type._name == "name"
+        assert copy_test_type._address == 3
 
     def test_repeated_storing_and_updating_produces_expected_dictionary(
         self, named_dt, context
@@ -74,9 +74,9 @@ class TestDataType:
         }
 
     def test_default_parser_performs_no_op(self, named_dt, context):
-        result = named_dt._parse(b"123", context, 5)
+        result = named_dt._parse(b"123567", context, 3)
 
-        assert result == 5
+        assert result == 3
         assert context == {}
 
     def test_space_and_parse_raises_error_past_required_address(
@@ -101,9 +101,9 @@ class TestDataType:
         assert context["spacer_0x1-0x2"] == b"23"
 
 
-class TestChunk:
-    class MockType(DataType):
-        backupname = "mock"
+class TestBatch:
+    class MockType(Parser):
+        _backupname = "mock"
 
         def __init__(self, length=None, value=None, **kwargs) -> None:
             self.value = value
@@ -116,49 +116,49 @@ class TestChunk:
             return end_addr
 
     @pytest.fixture
-    def empty_chunk(self):
-        return Chunk()
+    def empty_Batch(self):
+        return Batch()
 
-    def test_empty_chunk_returns_empty_dict_on_parsing(self, empty_chunk):
-        assert empty_chunk.parse(b"abc") == {}
+    def test_empty_Batch_returns_empty_dict_on_parsing(self, empty_Batch):
+        assert empty_Batch.parse(b"abc") == {}
 
     @pytest.fixture
-    def sequential_chunk(self):
-        return Chunk(
-            TestChunk.MockType(3, "foo"),
-            TestChunk.MockType(5, "bar"),
-            TestChunk.MockType(1, "baz"),
+    def sequential_Batch(self):
+        return Batch(
+            TestBatch.MockType(3, "foo"),
+            TestBatch.MockType(5, "bar"),
+            TestBatch.MockType(1, "baz"),
         )
 
-    def test_chunk_returns_parsing_results_from_all_elements(
-        self, sequential_chunk
+    def test_Batch_returns_parsing_results_from_all_elements(
+        self, sequential_Batch
     ):
-        result = sequential_chunk.parse(b"12354234562")
+        result = sequential_Batch.parse(b"12354234562")
         assert result == {
             "mock_0x0": "foo",
             "mock_0x3": "bar",
             "mock_0x8": "baz",
         }
 
-    def test_chunk_returns_error_if_parsing_elements_parse_past_end_of_input(
-        self, sequential_chunk
+    def test_Batch_returns_error_if_parsing_elements_parse_past_end_of_input(
+        self, sequential_Batch
     ):
 
         with pytest.raises(RuntimeError):
-            sequential_chunk.parse(b"12")
+            sequential_Batch.parse(b"12")
 
     @pytest.fixture
-    def addressed_chunk(self):
-        return Chunk(
-            TestChunk.MockType(3, "foo"),
-            TestChunk.MockType(5, "bar"),
-            TestChunk.MockType(1, "baz"),
-            TestChunk.MockType(2, "qux", address=10),
+    def addressed_Batch(self):
+        return Batch(
+            TestBatch.MockType(3, "foo"),
+            TestBatch.MockType(5, "bar"),
+            TestBatch.MockType(1, "baz"),
+            TestBatch.MockType(2, "qux", address=10),
         )
 
-    def test_chunk_gets_spacer_with_addressed_elements(self, addressed_chunk):
+    def test_Batch_gets_spacer_with_addressed_elements(self, addressed_Batch):
 
-        result = addressed_chunk.parse(b"\0" * 100)
+        result = addressed_Batch.parse(b"\0" * 100)
 
         assert result == {
             "mock_0x0": "foo",
@@ -168,12 +168,12 @@ class TestChunk:
             "mock_0xa": "qux",
         }
 
-    def test_nested_chunks_produce_expected_results(self, addressed_chunk):
-        cnk = Chunk(
-            addressed_chunk,
-            addressed_chunk("name"),
-            addressed_chunk("name", 40),
-            addressed_chunk(address=60),
+    def test_nested_Batchs_produce_expected_results(self, addressed_Batch):
+        cnk = Batch(
+            addressed_Batch,
+            addressed_Batch("name"),
+            addressed_Batch("name", 40),
+            addressed_Batch(address=60),
         )
 
         result = cnk.parse(bytes(range(256)))

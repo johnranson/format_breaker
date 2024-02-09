@@ -1,13 +1,13 @@
 from __future__ import annotations
 from typing import Any
-from formatbreaker.core import DataType, FBError
+from formatbreaker.core import Parser, FBError
 from formatbreaker import util
 
 
-class Byte(DataType):
+class Byte(Parser):
     """Reads a single byte from the data"""
 
-    backupname = "Byte"
+    _backupname = "Byte"
 
     def _parse(
         self,
@@ -32,10 +32,10 @@ class Byte(DataType):
         return end_addr
 
 
-class Bytes(DataType):
+class Bytes(Parser):
     """Reads a number of bytes from the data"""
 
-    backupname = "Bytes"
+    _backupname = "Bytes"
 
     def __init__(self, length: int, **kwargs: Any) -> None:
         util.validate_address_or_length(length, 1)
@@ -66,11 +66,11 @@ class Bytes(DataType):
         return end_addr
 
 
-class VarBytes(DataType):
+class VarBytes(Parser):
     """Reads a number of bytes from the data with length defined by another
     field"""
 
-    backupname = "VarBytes"
+    _backupname = "VarBytes"
 
     def __init__(self, length_key: str, **kwargs: Any) -> None:
         if not isinstance(length_key, str):
@@ -101,24 +101,24 @@ class VarBytes(DataType):
         return end_addr
 
 
-class PadToAddress(DataType):
+class PadToAddress(Parser):
     """Brings the data stream to a specific address. Generates a spacer in the
     output. Does not have a name and
     """
 
     def __call__(
         self, name: str | None = None, address: int | None = None
-    ) -> DataType:
+    ) -> Parser:
         raise NotImplementedError
 
     def __init__(self, address: int) -> None:
         super().__init__(address=address)
 
 
-class Remnant(DataType):
+class Remnant(Parser):
     """Reads all remainging bytes in the data"""
 
-    backupname = "Remnant"
+    _backupname = "Remnant"
 
     def _parse(
         self,
@@ -135,10 +135,10 @@ class Remnant(DataType):
         return end_addr
 
 
-class Bit(DataType):
+class Bit(Parser):
     """Reads a single byte from the data"""
 
-    backupname = "Bit"
+    _backupname = "Bit"
 
     def _parse(
         self,
@@ -162,10 +162,10 @@ class Bit(DataType):
         return end_addr
 
 
-class BitFlags(DataType):
+class BitFlags(Parser):
     """Reads a number of bits from the data"""
 
-    backupname = "BitFlags"
+    _backupname = "BitFlags"
 
     def __init__(self, length: int, **kwargs: Any) -> None:
 
@@ -195,11 +195,11 @@ class BitFlags(DataType):
         return end_addr
 
 
-class BitWord(DataType):
+class BitWord(Parser):
     """Reads a number of bits from the data"""
 
     length: int
-    backupname = "BitWord"
+    _backupname = "BitWord"
 
     def __init__(self, length: int, **kwargs: Any) -> None:
         util.validate_address_or_length(length, 1)

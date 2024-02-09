@@ -1,5 +1,5 @@
 import pytest
-from formatbreaker.core import FBError, Chunk
+from formatbreaker.core import FBError, Batch
 from formatbreaker.basictypes import *
 
 

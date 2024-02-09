@@ -1,4 +1,4 @@
-"""This module contains the basic datatypes with no decoding"""
+"""This module contains the basic Parsers with no decoding"""
 
 from __future__ import annotations
 from typing import ClassVar, Any
@@ -7,40 +7,54 @@ from formatbreaker import util
 
 
 class FBError(Exception):
-    """This error should be raised when a datatype fails to parse the data
+    """This error should be raised when a Parser fails to parse the data
     because it doesn't fit expectations. The idea is that optional data
     types can fail to be parsed, and the top level code will catch the
     exception and try something else.
     """
 
 
-class DataType:
+class Parser:
     """This is the base class for all objects that parse data"""
 
-    name: str | None
-    address: int | None
-    backupname: ClassVar[str | None] = None
+    __name: str | None
+    __address: int | None
+    _backupname: ClassVar[str | None] = None
+
+    @property
+    def _name(self) -> str | None:
+        return self.__name
+
+    @_name.setter
+    def _name(self, name: str | None) -> None:
+        if name is not None and not isinstance(name, str):
+            raise TypeError("Parser names must be strings")
+        self.__name = name
+
+    @property
+    def _address(self) -> int | None:
+        return self.__address
+
+    @_address.setter
+    def _address(self, address: int | None) -> None:
+        if address is not None:
+            util.validate_address_or_length(address)
+        self.__address = address
 
     def __init__(
         self, name: str | None = None, address: int | None = None
     ) -> None:
-        """Basic code storing the name and address
+        """Constructor for Parser
 
-        Args:
-            name (string, optional): The key under which to store results in
-                the context dictionary during parsing. Defaults to None.
-            address (integer, optional): The address in the data which
-                this instance should read from. Defaults to None.
+        Parameters
+        ----------
+        name : str | None, default None
+            The key under which to store results in the context dictionary during parsing.
+        address : int | None, default None
+            The address in the data which this instance should read from.
         """
-        if name is not None:
-            if not isinstance(name, str):
-                raise TypeError
-        if address is not None:
-            util.validate_address_or_length(address)
-
-        self.address = address
-        self.name = name
-
+        self._address = address
+        self._name = name
 
     def _parse(
         self,
@@ -48,21 +62,30 @@ class DataType:
         context: dict[str, Any],
         addr: int,
     ) -> int:
-        """A method for parsing data provided at the address provided. This
-            is data type dependent. Stores the parsed value in the context
-            dictionary. Does nothing and returns the address unchanged by
-            default. This should be overridden as needed by subclasses.
+        """Parses data at `addr` into the `context`
 
-        Args:
-            data (bytes or BitwiseBytes): Data to be parsed
-            context (dict): The dictionary where results are stored
-            addr (int): The bit or byte address to read from
+        Should be overridden by any subclass that reads data. Does
+        nothing and returns `address` unchanged by default.
 
-        Returns:
-            addr (int): The next bite or byte address after the parsed data
+        Parameters
+        ----------
+        data : bytes | BitwiseBytes
+            Data to be parsed
+        context : dict[str, Any]
+            Where the results are stored
+        addr : int
+            The bit or byte address in `data` where the data to be parse lies.
+
+        Returns
+        -------
+        int
+            The next bit or byte address after the parsed data
         """
         # pylint: disable=unused-argument
         util.validate_address_or_length(addr)
+        if self._address is not None and self._address != addr:
+            raise IndexError
+
         return addr
 
     def _space_and_parse(
@@ -71,35 +94,48 @@ class DataType:
         context: dict[str, Any],
         addr: int,
     ) -> int:
-        """If the DataType has a fixed address, read to the address and save
-            it as a spacer value in the context. Then call the _parse
-            method.
+        """Store bytes up to the target location and then parse normally
 
-        Args:
-            data (bytes or BitwiseBytes): Data being parsed
-            context (dict): The dictionary where results are stored
-            addr (int): The current bit or byte address in the data
+        Parameters
+        ----------
+        data : bytes | util.BitwiseBytes
+            Data to be parsed
+        context : dict[str, Any]
+            Where the results are stored
+        addr : int
+            The current bit or byte address in `data`
 
-        Returns:
-            addr (int): The next bite or byte address after the parsed data
+        Returns
+        -------
+        int
+            The next bite or byte address after the parsed data
+
+        Raises
+        ------
+        FBError
+            The current address in `data` is past the `self.address`
         """
         util.validate_address_or_length(addr)
-        if self.address:
-            if addr > self.address:
+        if self._address:
+            if addr > self._address:
                 raise FBError("Target address has already been passed")
-            if addr < self.address:
-                spacer_size = self.address - addr
+            if addr < self._address:
+                spacer_size = self._address - addr
                 addr = util.spacer(data, context, addr, spacer_size)
         return self._parse(data, context, addr)
 
     def parse(self, data: bytes | util.BitwiseBytes) -> dict[str, Any]:
         """Parse the provided data starting from address 0
 
-        Args:
-            data (bytes or BitwiseBytes): Data to be parsed
+        Parameters
+        ----------
+        data : bytes | util.BitwiseBytes
+            Data to be parsed
 
-        Returns:
-            dict: A dictionary of field names and parsed values
+        Returns
+        -------
+        dict[str, Any]
+            A dictionary of field names and parsed values
         """
         context: dict[str, Any] = {}
         self._space_and_parse(data, context, 0)
@@ -107,28 +143,27 @@ class DataType:
 
     def __call__(
         self, name: str | None = None, address: int | None = None
-    ) -> DataType:
-        """Allows instances to be callable to easily make a copy of the
-            instance with a new name and/or address
+    ) -> Parser:
+        """Copy the current instance with a new name or address
 
-        Args:
-            name (string, optional): Replaces the name of the copied
-                object if defined. Defaults to None.
-            address (int, optional): Replaces the address of the copied
-                object if defined. Defaults to None.
+        Parameters
+        ----------
+        name : str | None, optional
+            Replacement name, if defined
+        address : int | None, optional
+            Replacement address, if defined
 
-        Returns:
-            DataType: A copy of the existing object with the name and address
-                changed.
+        Returns
+        -------
+        Parser
+            A copy of the existing object with the name and address changed.
         """
+
         b = copy(self)
         if name is not None:
-            if not isinstance(name, str):
-                raise TypeError
-            b.name = name
+            b._name = name
         if address is not None:
-            util.validate_address_or_length(address)
-            b.address = address
+            b._address = address
         return b
 
     def _store(
@@ -146,7 +181,7 @@ class DataType:
             name (string, optional): The name to store the data under. If no
                 name is provided, the code will use the name stored in the
                 instance. If no name is stored in the instance, it will default
-                to the class backupname attribute.
+                to the class _backupname attribute.
             addr: The location the data came from, used for unnamed fields
 
         Raises:
@@ -155,11 +190,14 @@ class DataType:
 
         if name:
             pass
-        elif self.name:
-            name = self.name
-        elif self.backupname and (addr is not None):
-            util.validate_address_or_length(addr)
-            name = self.backupname + "_" + hex(addr)
+        elif self._name:
+            name = self._name
+        elif self._backupname:
+            if (addr is not None):
+                util.validate_address_or_length(addr)
+                name = self._backupname + "_" + hex(addr)
+            else:
+                name = self._backupname
         else:
             raise RuntimeError("Attempted to store unnamed data")
 
@@ -194,40 +232,39 @@ class DataType:
         return data
 
 
-class Chunk(DataType):
+class Batch(Parser):
     """A container that holds ordered data fields and provides a mechanism for
     parsing them in order"""
 
     bitwise: bool
     relative: bool
-    elements: tuple[DataType, ...]
+    elements: tuple[Parser, ...]
 
     def __init__(
         self,
-        *args: DataType,
+        *args: Parser,
         relative: bool = True,
         bitwise: bool = False,
         **kwargs: Any,
     ) -> None:
-        """Holds any number of DataType elements and parses them in order.
+        """Holds any number of Parser elements and parses them in order.
 
         Args:
-            *args (*DataType): Ordered list of the contained elements
+            *args (*Parser): Ordered list of the contained elements
             relative (bool, optional): True if addresses for the contained
-                elements are relative to this chunk. Defaults to "true" if not
+                elements are relative to this Batch. Defaults to "true" if not
                 defined.
 
         Raises:
-            ValueError: one of the elements provided is not a DataType
+            ValueError: one of the elements provided is not a Parser
         """
         if not isinstance(relative, bool):
             raise TypeError
         if not isinstance(bitwise, bool):
             raise TypeError
         if not isinstance(args, tuple):
-            print(args)
             raise TypeError
-        if not all(isinstance(item, DataType) for item in args):
+        if not all(isinstance(item, Parser) for item in args):
             raise TypeError
 
         self.relative = relative
@@ -287,7 +324,7 @@ class Chunk(DataType):
         elif self.relative:
             addr = orig_addr + addr
 
-        if self.name:
+        if self._name:
             self._store(context, out_context)
         else:
             self._update(context, out_context)
