@@ -8,12 +8,12 @@ from operator import add
 class BitwiseBytes:
     """Allows treating bytes as a subscriptable bit list"""
 
-    data: bytes
-    start_bit: int
-    stop_bit: int
-    start_byte: int
-    stop_byte: int
-    length: int
+    _data: bytes
+    _start_bit: int
+    _stop_bit: int
+    _start_byte: int
+    _stop_byte: int
+    _length: int
 
     def __init__(
         self,
@@ -23,30 +23,22 @@ class BitwiseBytes:
     ) -> None:
         """Constructs a BitwiseBytes object
 
-        Parameters
-        ----------
-        data_source : bytes | BitwiseBytes
-            The object to create the new BitwiseBytes object from
-        start_bit : int, default 0
-            The address of the first bit in `data_source` to be included
-        bit_length : int | None, optional
-            The address of the first bit in `data_source` to be excluded
+        Args:
+            data_source:The object to create the new BitwiseBytes object from
+            start_bit: The address of the first bit in `data_source` to be included
+            bit_length: The address of the first bit in `data_source` to be excluded
 
         """
         if isinstance(data_source, BitwiseBytes):
-            data_length = data_source.length
-            self.data = data_source.data
-            self.start_bit = data_source.start_bit
-            self.start_byte = data_source.start_byte
-            self.stop_bit = data_source.start_bit
-            self.stop_byte = data_source.start_byte
+            data_length = data_source._length
+            self._data = data_source._data
+            base_bit = data_source._start_bit
+            base_byte = data_source._start_byte
         elif isinstance(data_source, bytes):
             data_length = len(data_source) * 8
-            self.data = data_source
-            self.start_bit = 0
-            self.start_byte = 0
-            self.stop_bit = 0
-            self.stop_byte = 0
+            self._data = data_source
+            base_bit = 0
+            base_byte = 0
         else:
             raise TypeError
 
@@ -56,12 +48,12 @@ class BitwiseBytes:
         else:
             stop_bit = data_length
 
-        self.length = stop_bit - start_bit
+        self._length = stop_bit - start_bit
 
-        self.start_byte = self.start_byte + (self.start_bit + start_bit) // 8
-        self.start_bit = (self.start_bit + start_bit) % 8
-        self.stop_byte = self.stop_byte + (self.stop_bit + stop_bit) // 8
-        self.stop_bit = (self.stop_bit + stop_bit) % 8
+        self._start_byte = base_byte + (base_bit + start_bit) // 8
+        self._start_bit = (base_bit + start_bit) % 8
+        self._stop_byte = base_byte + (base_bit + stop_bit) // 8
+        self._stop_bit = (base_bit + stop_bit) % 8
 
     @overload
     def __getitem__(self, item: int) -> bool: ...
@@ -72,33 +64,29 @@ class BitwiseBytes:
     def __getitem__(self, item: int | slice) -> BitwiseBytes | bool:
         """Returns a value for obj[addr] or obj[slice]
 
-        Parameters
-        ----------
-        item : int | slice
-            The location in the bits to be returned
+        Args:
+            item: The location in the bits to be returned
 
-        Returns
-        -------
-        BitwiseBytes | bool
+        Returns:
             Boolean value of a single bit or a new BitwiseBytes for a slice
         """
         if isinstance(item, slice):
-            start, stop, step = item.indices(self.length)
+            start, stop, step = item.indices(self._length)
             length = stop - start
             assert length >= 0
             if step != 1:
                 raise NotImplementedError
 
-            return BitwiseBytes(self.data, start, stop)
+            return BitwiseBytes(self._data, start, stop)
 
         elif isinstance(item, int):
-            if item >= self.length or item < -self.length:
+            if item >= self._length or item < -self._length:
                 raise IndexError
-            item = item % self.length
-            bit_ind = (self.start_bit + item % 8) % 8
-            byte_ind = self.start_byte + (item + self.start_bit) // 8
+            item = item % self._length
+            bit_ind = (self._start_bit + item % 8) % 8
+            byte_ind = self._start_byte + (item + self._start_bit) // 8
 
-            bit_raw = (0x80 >> bit_ind) & self.data[byte_ind]
+            bit_raw = (0x80 >> bit_ind) & self._data[byte_ind]
 
             return bool(bit_raw)
 
@@ -108,55 +96,49 @@ class BitwiseBytes:
     def __len__(self) -> int:
         """Returns the length
 
-        Returns
-        -------
-        int
+        Returns:
             Length in bits
         """
-        return self.length
+        return self._length
 
     def __bytes__(self) -> bytes:
         """Returns the contained bits as bytes
 
-        Returns
-        -------
-        bytes
+        Returns:
             A right justified copy of the contents
         """
-        if self.length == 0:
+        if self._length == 0:
             return b""
 
-        if self.stop_bit == 0:
-            last_byte_addr = self.stop_byte - 1
+        if self._stop_bit == 0:
+            last_byte_addr = self._stop_byte - 1
         else:
-            last_byte_addr = self.stop_byte
+            last_byte_addr = self._stop_byte
 
-        single_byte = last_byte_addr == self.start_byte
-        multi_byte = last_byte_addr > self.start_byte + 1
+        single_byte = last_byte_addr == self._start_byte
+        multi_byte = last_byte_addr > self._start_byte + 1
 
-        stop_shift = (8 - self.stop_bit) % 8
+        stop_shift = (8 - self._stop_bit) % 8
 
         if single_byte:
             result = bytes(
                 [
-                    (self.data[self.start_byte] & (0xFF >> self.start_bit))
+                    (self._data[self._start_byte] & (0xFF >> self._start_bit))
                     >> stop_shift
                 ]
             )
         else:
             first_byte = bytes(
-                [self.data[self.start_byte] & (0xFF >> self.start_bit)]
+                [self._data[self._start_byte] & (0xFF >> self._start_bit)]
             )
-            last_byte = bytes(
-                [self.data[last_byte_addr] & (0xFF << stop_shift)]
-            )
+            last_byte = bytes([self._data[last_byte_addr] & (0xFF << stop_shift)])
             mid_bytes = b""
             if multi_byte:
-                mid_bytes = self.data[self.start_byte + 1 : last_byte_addr]
+                mid_bytes = self._data[self._start_byte + 1 : last_byte_addr]
 
             data = first_byte + mid_bytes + last_byte
 
-            if self.stop_bit == 0:
+            if self._stop_bit == 0:
                 result = data
             else:
                 shift_data = [b << (8 - stop_shift) for b in data]
@@ -170,23 +152,21 @@ class BitwiseBytes:
     def to_bools(self) -> list[bool]:
         """Converts to a list of booleans
 
-        Returns
-        -------
-        list[bool]
+        Returns:
             A list of the boolean values of the bits
         """
-        return [bool(self[i]) for i in range(self.length)]
+        return [bool(self[i]) for i in range(self._length)]
 
     def __index__(self) -> int:
-        if self.length == 0:
+        if self._length == 0:
             raise RuntimeError
         return int.from_bytes(bytes(self), "big", signed=False)
 
     def __eq__(self: BitwiseBytes, other: object) -> bool:
         return (
             isinstance(other, BitwiseBytes)
-            and (self.length == other.length)
-            and (self.length == 0 or (int(self) == int(other)))
+            and (self._length == other._length)
+            and (self._length == 0 or (int(self) == int(other)))
         )
 
 
@@ -195,21 +175,14 @@ def validate_address_or_length(
 ) -> None:
     """Ensure that a value is a valid address
 
-    Parameters
-    ----------
-    address : int
-        The address to be validated
-    amin : int, default 0
-        The minimum valid value for `address`
-    amax : int | None, optional
-        The maximum valid value for `address`, if defined
+    Args:
+        address: The address to be validated
+        amin: The minimum valid value for `address`
+        amax: The maximum valid value for `address`, if defined
 
-    Raises
-    ------
-    TypeError
-        `address` is not int type
-    IndexError
-        `address` is not in [`min`, `max`]
+    Raises:
+        TypeError: `address` is not int type
+        IndexError: `address` is not in [`min`, `max`]
     """
     if not isinstance(address, int):
         raise TypeError
@@ -226,16 +199,11 @@ def uniquify_label(label: str, context: dict[str, Any]) -> str:
     Makes a copy of `str`, optionally with " [N]" added where N is the first
     natural number that forms an unused key in `context`
 
-    Parameters
-    ----------
-    label : str
-        A string to be made unique
-    context : dict[str, Any]
-        An existing dictionary
+    Args:
+        label: A string to be made unique
+        context: An existing dictionary
 
-    Returns
-    -------
-    str
+    Returns:
         A string key that is unused in `context`
     """
     new_label = label
@@ -254,20 +222,14 @@ def spacer(
 ) -> int:
     """Reads a spacer into a context dictionary
 
-    Parameters
-    ----------
-    data : bytes | BitwiseBytes
-        Data to be parsed
-    context : dict[str, Any]
-        Where the results are stored
-    start_addr : int
-        The address of the first bit or byte in `data_source` to be included
-    stop_addr : int
-        The address of the first bit or byte in `data_source` to be excluded
+    Args:
+        data: Data being parsed
+        context: Where results are stored including prior results in the same
+            containing Block
+        start_addr: The address of the first bit or byte in `data_source` to be included
+        stop_addr: The address of the first bit or byte in `data_source` to be excluded
 
-    Returns
-    -------
-    int
+    Returns:
         The address of the first bit or byte in `data_source` after the spacer
     """
 

@@ -1,4 +1,8 @@
-"""Decoded formats"""
+"""Decoding Parsers
+
+This module contains Parser subclasses that only implement `_decode()` and
+optionally `__init__()`.
+"""
 
 from __future__ import annotations
 from typing import Any
@@ -15,10 +19,13 @@ class ByteFlag(Byte):
     _true_value: int | None
     _backup_label = "Flag"
 
-    def __init__(
-        self, true_value: bytes | int | None = None, **kwargs: Any
-    ) -> None:
-
+    def __init__(self, true_value: bytes | int | None = None, **kwargs: Any) -> None:
+        """
+        Args:
+            true_value: The only value which the parser will interpret as True, if
+                defined.
+            **kwargs: Arguments to be passed to the superclass constructor
+        """
         if isinstance(true_value, bytes):
             if len(true_value) != 1:
                 raise ValueError
@@ -31,6 +38,8 @@ class ByteFlag(Byte):
             self._true_value = None
         else:
             raise TypeError
+        if true_value == 0:
+            raise ValueError
 
         super().__init__(**kwargs)
 
@@ -44,6 +53,7 @@ class ByteFlag(Byte):
 
 
 class BitConst(Bit):
+    """Fails parsing if a bit doesn't match a constant value"""
 
     _backup_label = "Const"
 
@@ -51,11 +61,14 @@ class BitConst(Bit):
         self._value = bool(value)
         super().__init__(**kwargs)
 
-    def _decode(self, data: bool):
-        return self._value == super()._decode(data)
+    def _decode(self, data: bool) -> bool:
+        if self._value != super()._decode(data):
+            raise FBError("Constant not matched")
+        return self._value
 
 
 class BitWordConst(BitWord):
+    """Fails parsing if a word doesn't match a constant value"""
 
     _backup_label = "Const"
 
@@ -63,89 +76,155 @@ class BitWordConst(BitWord):
         self, value: bytes | util.BitwiseBytes, bit_length: int, **kwargs: Any
     ) -> None:
 
-        self._value = int(util.BitwiseBytes(value, 0, bit_length))
+        self._value = util.BitwiseBytes(value, 0, bit_length)
         super().__init__(bit_length, **kwargs)
 
-    def _decode(self, data: bool) -> bool:
-        return self._value == super()._decode(data)
+    def _decode(self, data: util.BitwiseBytes) -> int:
+        if self._value != data:
+            raise FBError("Constant not matched")
+        return int(self._value)
+
+
+class BitFlags(BitWord):
+    """Reads a number of bits from the data"""
+
+    _backup_label = "Const"
+
+    def _decode(self, data: util.BitwiseBytes) -> list[bool]:
+        return data.to_bools()
 
 
 class Int32L(Bytes):
+    """Reads 4 bytes as a signed, little endian integer"""
 
     _backup_label = "Int32"
-
-    """Reads 4 bytes as a signed, little endian integer"""
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(4, **kwargs)
 
     def _decode(self, data: bytes) -> int:
+        """Decodes a signed integer from 4 little endian bytes.
+
+        Args:
+            data: Four little endian bytes encoding an signed integer
+
+        Returns:
+            The decoded number
+        """
         return int.from_bytes(data, "little", signed=True)
 
 
 class UInt32L(Bytes):
+    """Reads 4 bytes as a unsigned, little endian integer"""
 
     _backup_label = "UInt32"
-
-    """Reads 4 bytes as a unsigned, little endian integer"""
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(4, **kwargs)
 
     def _decode(self, data: bytes) -> int:
+        """Decodes a unsigned integer from 4 little endian bytes.
+
+        Args:
+            data: Four little endian bytes encoding an unsigned integer
+
+        Returns:
+            The decoded number
+        """
         return int.from_bytes(data, "little", signed=False)
 
 
 class Int16L(Bytes):
+    """Reads 2 bytes as a signed, little endian integer"""
 
     _backup_label = "Int16"
-
-    """Reads 2 bytes as a signed, little endian integer"""
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(2, **kwargs)
 
     def _decode(self, data: bytes) -> int:
+        """Decodes a signed integer from 2 little endian bytes.
+
+        Args:
+            data: Two little endian bytes encoding an signed integer
+
+        Returns:
+            The decoded number
+        """
         return int.from_bytes(data, "little", signed=True)
 
 
 class UInt16L(Bytes):
+    """Reads 2 bytes as a unsigned, little endian integer"""
 
     _backup_label = "UInt16"
-
-    """Reads 2 bytes as a unsigned, little endian integer"""
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(2, **kwargs)
 
     def _decode(self, data: bytes) -> int:
+        """Decodes a unsigned integer from 2 little endian bytes.
+
+        Args:
+            data: Two little endian bytes encoding an unsigned integer
+
+        Returns:
+            The decoded number
+        """
         return int.from_bytes(data, "little", signed=False)
 
 
-class Int8L(Byte):
+class Int8(Byte):
+    """Reads 1 byte as a signed integer"""
 
     _backup_label = "Int8"
 
-    """Reads 1 byte as a signed, little endian integer"""
-
     def _decode(self, data: bytes) -> int:
+        """Decodes a signed integer from one byte.
+
+        Args:
+            data: One byte
+
+        Returns:
+            The decoded number
+        """
         return int.from_bytes(data, "little", signed=True)
 
 
 class UInt8(Byte):
+    """Reads 1 byte as an unsigned integer"""
 
     _backup_label = "UInt8"
 
-    """Reads 1 byte as a unsigned, little endian integer"""
-
     def _decode(self, data: bytes) -> int:
+        """Decodes an unsigned integer from one byte.
+
+        Args:
+            data: One byte
+
+        Returns:
+            The decoded number
+        """
         return int.from_bytes(data, "little", signed=False)
 
 
 class Float32L(Bytes):
     """Reads 4 bytes as a little endian single precision float"""
 
+    _backup_label = "Float32"
+
     def __init__(self, **kwargs: Any) -> None:
+        """Decodes a single precision floating point number from little endian
+        bytes.
+
+        Args:
+            data: 4 little endian bytes encoding a single precision floating point
+                number
+
+        Returns:
+            The decoded number
+        """
+
         super().__init__(4, **kwargs)
 
     def _decode(self, data: bytes) -> float:
@@ -155,28 +234,61 @@ class Float32L(Bytes):
 class Float64L(Bytes):
     """Reads 8 bytes as a little endian double precision float"""
 
+    _backup_label = "Float64"
+
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(8, **kwargs)
 
     def _decode(self, data: bytes) -> float:
+        """Decodes a double precision floating point number from little endian
+        bytes.
+
+        Args:
+            data: 8 little endian bytes encoding a double precision floating point
+                number
+
+        Returns:
+            The decoded number
+        """
+
         return struct.unpack("<d", data)[0]
 
 
 class UuidL(Bytes):
     """Reads 16 bytes as a UUID (Little Endian words)"""
 
+    _backup_label = "UUID"
+
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(16, **kwargs)
 
     def _decode(self, data: bytes) -> UUID:
+        """Decodes a UUID with little endian words.
+
+        Args:
+            data: A 16 byte binary UUID with little endian words
+
+        Returns:
+            The decoded UUID
+        """
         return UUID(bytes_le=data)
 
 
 class UuidB(Bytes):
     """Reads 16 bytes as a UUID (Big Endian words)"""
 
+    _backup_label = "UUID"
+
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(16, **kwargs)
 
     def _decode(self, data: bytes) -> UUID:
+        """Decodes a UUID with big endian words.
+
+        Args:
+            data: A 16 byte binary UUID with big endian words
+
+        Returns:
+            The decoded UUID
+        """
         return UUID(bytes=data)
