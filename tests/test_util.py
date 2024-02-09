@@ -11,14 +11,18 @@ def test_uniquify_name():
     assert uniquify_name("name", context) == "name 2"
 
 
-@pytest.mark.parametrize("data", [bytes(range(128)), BitwiseBytes(bytes(range(16)))])
+@pytest.mark.parametrize(
+    "data", [bytes(range(128)), BitwiseBytes(bytes(range(16)))]
+)
 class TestSpacer:
 
     @pytest.fixture
     def context(self):
         return {}
 
-    def test_spacer_generates_expected_dictionary_and_return_value(self, data, context):
+    def test_spacer_generates_expected_dictionary_and_return_value(
+        self, data, context
+    ):
         result = spacer(data, context, 1, 5)
         assert result == 6
         assert context["spacer_0x1-0x5"] == bytes(data[1:6])

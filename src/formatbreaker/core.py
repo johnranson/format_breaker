@@ -49,7 +49,7 @@ class Parser:
         Parameters
         ----------
         name : str | None, default None
-            The key under which to store results in the context dictionary during parsing.
+            The key under which to store results during parsing.
         address : int | None, default None
             The address in the data which this instance should read from.
         """
@@ -193,7 +193,7 @@ class Parser:
         elif self._name:
             name = self._name
         elif self._backupname:
-            if (addr is not None):
+            if addr is not None:
                 util.validate_address_or_length(addr)
                 name = self._backupname + "_" + hex(addr)
             else:

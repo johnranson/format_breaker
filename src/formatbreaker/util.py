@@ -185,7 +185,7 @@ def validate_address_or_length(
         `address` is not int type
     IndexError
         `address` is not in [`min`, `max`]
-    """    
+    """
     if not isinstance(address, int):
         raise TypeError
     if address < amin:
