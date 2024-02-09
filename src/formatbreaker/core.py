@@ -17,19 +17,19 @@ class FBError(Exception):
 class Parser:
     """This is the base class for all objects that parse data"""
 
-    __name: str | None
+    __label: str | None
     __address: int | None
-    _backupname: ClassVar[str | None] = None
+    _backup_label: ClassVar[str | None] = None
 
     @property
-    def _name(self) -> str | None:
-        return self.__name
+    def _label(self) -> str | None:
+        return self.__label
 
-    @_name.setter
-    def _name(self, name: str | None) -> None:
+    @_label.setter
+    def _label(self, name: str | None) -> None:
         if name is not None and not isinstance(name, str):
             raise TypeError("Parser names must be strings")
-        self.__name = name
+        self.__label = name
 
     @property
     def _address(self) -> int | None:
@@ -54,7 +54,7 @@ class Parser:
             The address in the data which this instance should read from.
         """
         self._address = address
-        self._name = name
+        self._label = name
 
     def _parse(
         self,
@@ -161,7 +161,7 @@ class Parser:
 
         b = copy(self)
         if name is not None:
-            b._name = name
+            b._label = name
         if address is not None:
             b._address = address
         return b
@@ -181,7 +181,7 @@ class Parser:
             name (string, optional): The name to store the data under. If no
                 name is provided, the code will use the name stored in the
                 instance. If no name is stored in the instance, it will default
-                to the class _backupname attribute.
+                to the class _backup_label attribute.
             addr: The location the data came from, used for unnamed fields
 
         Raises:
@@ -190,14 +190,14 @@ class Parser:
 
         if name:
             pass
-        elif self._name:
-            name = self._name
-        elif self._backupname:
+        elif self._label:
+            name = self._label
+        elif self._backup_label:
             if addr is not None:
                 util.validate_address_or_length(addr)
-                name = self._backupname + "_" + hex(addr)
+                name = self._backup_label + "_" + hex(addr)
             else:
-                name = self._backupname
+                name = self._backup_label
         else:
             raise RuntimeError("Attempted to store unnamed data")
 
@@ -324,7 +324,7 @@ class Batch(Parser):
         elif self.relative:
             addr = orig_addr + addr
 
-        if self._name:
+        if self._label:
             self._store(context, out_context)
         else:
             self._update(context, out_context)

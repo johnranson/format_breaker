@@ -13,9 +13,9 @@ class TestParser:
     def default_dt(self):
         return Parser()
 
-    def test_constructor_defaults_to_no_name_and_address(self, default_dt):
+    def test_constructor_defaults_to_no_label_and_address(self, default_dt):
 
-        assert default_dt._name is None
+        assert default_dt._label is None
         assert default_dt._address is None
 
         context = {}
@@ -27,75 +27,75 @@ class TestParser:
         copy_test_type = default_dt()
 
         assert copy_test_type is not default_dt
-        assert copy_test_type._name is None
+        assert copy_test_type._label is None
         assert copy_test_type._address is None
 
     def test_bad_constructor_types_raise_exceptions(self):
         with pytest.raises(TypeError):
-            Parser("name", "address")
+            Parser("label", "address")
 
         with pytest.raises(TypeError):
             Parser(3, 3)
 
     def test_negative_address_raises_exception(self):
         with pytest.raises(IndexError):
-            Parser("name", -1)
+            Parser("label", -1)
 
     @pytest.fixture
-    def named_dt(self):
-        return Parser("name", 3)
+    def labeled_dt(self):
+        return Parser("label", 3)
 
-    def test_constructor_with_arguments_saves_name_and_address(self, named_dt):
-        assert named_dt._name == "name"
-        assert named_dt._address == 3
-        assert named_dt._decode("123") == "123"
+    def test_constructor_with_arguments_saves_label_and_address(self, labeled_dt):
+        assert labeled_dt._label == "label"
+        assert labeled_dt._address == 3
+        assert labeled_dt._decode("123") == "123"
 
-    def test_copy_works_after_constructor_with_name_and_address(self, named_dt):
-        copy_test_type = named_dt()
+    def test_copy_works_after_constructor_with_label_and_address(self, labeled_dt):
+        copy_test_type = labeled_dt()
 
-        assert copy_test_type is not named_dt
-        assert copy_test_type._name == "name"
+        assert copy_test_type is not labeled_dt
+        assert copy_test_type._label == "label"
         assert copy_test_type._address == 3
 
     def test_repeated_storing_and_updating_produces_expected_dictionary(
-        self, named_dt, context
+        self, labeled_dt, context
     ):
-        named_dt._store(context, "123")
-        named_dt._store(context, "456")
-        named_dt._update(context, {"test": "123"})
-        named_dt._update(context, {"test": "456"})
-        named_dt._update(context, {})
+        labeled_dt._store(context, "123")
+        labeled_dt._store(context, "456")
+        labeled_dt._update(context, {"test": "123"})
+        labeled_dt._update(context, {"test": "456"})
+        labeled_dt._update(context, {})
 
         assert context == {
-            "name": "123",
-            "name 1": "456",
+            "label": "123",
+            "label 1": "456",
             "test": "123",
             "test 1": "456",
         }
 
-    def test_default_parser_performs_no_op(self, named_dt, context):
-        result = named_dt._parse(b"123567", context, 3)
+    def test_default_parser_performs_no_op(self, labeled_dt, context):
+        result = labeled_dt._parse(b"123567", context, 3)
 
         assert result == 3
         assert context == {}
 
     def test_space_and_parse_raises_error_past_required_address(
-        self, named_dt, context
+        self, labeled_dt, context
     ):
         with pytest.raises(FBError):
-            result = named_dt._space_and_parse(b"123456", context, 5)
+            result = labeled_dt._space_and_parse(b"123456", context, 5)
 
     def test_space_and_parse_does_not_create_spacer_if_at_address(
-        self, named_dt, context
+        self, labeled_dt, context
     ):
-        result = named_dt._space_and_parse(b"123456", context, 3)
+        result = labeled_dt._space_and_parse(b"123456", context, 3)
         assert result == 3
         assert not bool(context)
 
     def test_space_and_parse_creates_spacer_if_before_required_address(
-        self, named_dt, context
+        self, labeled_dt, context
     ):
-        result = named_dt._space_and_parse(b"123456", context, 1)
+        result = labeled_dt._space_and_parse(b"123456", context, 1)
 
         assert result == 3
         assert context["spacer_0x1-0x2"] == b"23"
@@ -103,7 +103,7 @@ class TestParser:
 
 class TestBatch:
     class MockType(Parser):
-        _backupname = "mock"
+        _backup_label = "mock"
 
         def __init__(self, length=None, value=None, **kwargs) -> None:
             self.value = value
@@ -171,8 +171,8 @@ class TestBatch:
     def test_nested_Batchs_produce_expected_results(self, addressed_Batch):
         cnk = Batch(
             addressed_Batch,
-            addressed_Batch("name"),
-            addressed_Batch("name", 40),
+            addressed_Batch("label"),
+            addressed_Batch("label", 40),
             addressed_Batch(address=60),
         )
 
@@ -184,7 +184,7 @@ class TestBatch:
             "mock_0x8": "baz",
             "spacer_0x9": b"\t",
             "mock_0xa": "qux",
-            "name": {
+            "label": {
                 "mock_0x0": "foo",
                 "mock_0x3": "bar",
                 "mock_0x8": "baz",
@@ -192,7 +192,7 @@ class TestBatch:
                 "mock_0xa": "qux",
             },
             "spacer_0x18-0x27": b"\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f !\"#$%&'",
-            "name 1": {
+            "label 1": {
                 "mock_0x0": "foo",
                 "mock_0x3": "bar",
                 "mock_0x8": "baz",

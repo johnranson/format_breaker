@@ -7,7 +7,7 @@ from formatbreaker import util
 class Byte(Parser):
     """Reads a single byte from the data"""
 
-    _backupname = "Byte"
+    _backup_label = "Byte"
 
     def _parse(
         self,
@@ -35,7 +35,7 @@ class Byte(Parser):
 class Bytes(Parser):
     """Reads a number of bytes from the data"""
 
-    _backupname = "Bytes"
+    _backup_label = "Bytes"
 
     def __init__(self, length: int, **kwargs: Any) -> None:
         util.validate_address_or_length(length, 1)
@@ -70,7 +70,7 @@ class VarBytes(Parser):
     """Reads a number of bytes from the data with length defined by another
     field"""
 
-    _backupname = "VarBytes"
+    _backup_label = "VarBytes"
 
     def __init__(self, length_key: str, **kwargs: Any) -> None:
         if not isinstance(length_key, str):
@@ -118,7 +118,7 @@ class PadToAddress(Parser):
 class Remnant(Parser):
     """Reads all remainging bytes in the data"""
 
-    _backupname = "Remnant"
+    _backup_label = "Remnant"
 
     def _parse(
         self,
@@ -138,7 +138,7 @@ class Remnant(Parser):
 class Bit(Parser):
     """Reads a single byte from the data"""
 
-    _backupname = "Bit"
+    _backup_label = "Bit"
 
     def _parse(
         self,
@@ -165,7 +165,7 @@ class Bit(Parser):
 class BitFlags(Parser):
     """Reads a number of bits from the data"""
 
-    _backupname = "BitFlags"
+    _backup_label = "BitFlags"
 
     def __init__(self, length: int, **kwargs: Any) -> None:
 
@@ -199,7 +199,7 @@ class BitWord(Parser):
     """Reads a number of bits from the data"""
 
     length: int
-    _backupname = "BitWord"
+    _backup_label = "BitWord"
 
     def __init__(self, length: int, **kwargs: Any) -> None:
         util.validate_address_or_length(length, 1)

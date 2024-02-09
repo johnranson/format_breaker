@@ -13,7 +13,7 @@ class ByteFlag(Byte):
     """Reads 1 byte as a boolean"""
 
     true_value: int | None
-    backupname = "Flag"
+    _backup_label = "Flag"
 
     def __init__(
         self, true_value: bytes | int | None = None, **kwargs: Any
@@ -45,7 +45,7 @@ class ByteFlag(Byte):
 
 class BitConst(Bit):
 
-    backupname = "Const"
+    _backup_label = "Const"
 
     def __init__(self, value: bool, **kwargs: Any) -> None:
         self.value = bool(value)
@@ -57,7 +57,7 @@ class BitConst(Bit):
 
 class BitWordConst(BitWord):
 
-    backupname = "Const"
+    _backup_label = "Const"
 
     def __init__(
         self, value: bytes | util.BitwiseBytes, length: int, **kwargs: Any
@@ -72,7 +72,7 @@ class BitWordConst(BitWord):
 
 class Int32L(Bytes):
 
-    backupname = "Int32"
+    _backup_label = "Int32"
 
     """Reads 4 bytes as a signed, little endian integer"""
 
@@ -85,7 +85,7 @@ class Int32L(Bytes):
 
 class UInt32L(Bytes):
 
-    backupname = "UInt32"
+    _backup_label = "UInt32"
 
     """Reads 4 bytes as a unsigned, little endian integer"""
 
@@ -98,7 +98,7 @@ class UInt32L(Bytes):
 
 class Int16L(Bytes):
 
-    backupname = "Int16"
+    _backup_label = "Int16"
 
     """Reads 2 bytes as a signed, little endian integer"""
 
@@ -111,7 +111,7 @@ class Int16L(Bytes):
 
 class UInt16L(Bytes):
 
-    backupname = "UInt16"
+    _backup_label = "UInt16"
 
     """Reads 2 bytes as a unsigned, little endian integer"""
 
@@ -124,7 +124,7 @@ class UInt16L(Bytes):
 
 class Int8L(Byte):
 
-    backupname = "Int8"
+    _backup_label = "Int8"
 
     """Reads 1 byte as a signed, little endian integer"""
 
@@ -134,7 +134,7 @@ class Int8L(Byte):
 
 class UInt8(Byte):
 
-    backupname = "UInt8"
+    _backup_label = "UInt8"
 
     """Reads 1 byte as a unsigned, little endian integer"""
 
