@@ -232,7 +232,7 @@ class Parser:
         return data
 
 
-class Batch(Parser):
+class Block(Parser):
     """A container that holds ordered data fields and provides a mechanism for
     parsing them in order"""
 

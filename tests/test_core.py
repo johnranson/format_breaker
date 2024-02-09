@@ -1,5 +1,5 @@
 import pytest
-from formatbreaker.core import Parser, FBError, Batch
+from formatbreaker.core import Parser, FBError, Block
 
 
 @pytest.fixture
@@ -101,7 +101,7 @@ class TestParser:
         assert context["spacer_0x1-0x2"] == b"23"
 
 
-class TestBatch:
+class TestBlock:
     class MockType(Parser):
         _backup_label = "mock"
 
@@ -116,49 +116,49 @@ class TestBatch:
             return end_addr
 
     @pytest.fixture
-    def empty_Batch(self):
-        return Batch()
+    def empty_block(self):
+        return Block()
 
-    def test_empty_Batch_returns_empty_dict_on_parsing(self, empty_Batch):
-        assert empty_Batch.parse(b"abc") == {}
+    def test_empty_block_returns_empty_dict_on_parsing(self, empty_block):
+        assert empty_block.parse(b"abc") == {}
 
     @pytest.fixture
-    def sequential_Batch(self):
-        return Batch(
-            TestBatch.MockType(3, "foo"),
-            TestBatch.MockType(5, "bar"),
-            TestBatch.MockType(1, "baz"),
+    def sequential_block(self):
+        return Block(
+            TestBlock.MockType(3, "foo"),
+            TestBlock.MockType(5, "bar"),
+            TestBlock.MockType(1, "baz"),
         )
 
-    def test_Batch_returns_parsing_results_from_all_elements(
-        self, sequential_Batch
+    def test_block_returns_parsing_results_from_all_elements(
+        self, sequential_block
     ):
-        result = sequential_Batch.parse(b"12354234562")
+        result = sequential_block.parse(b"12354234562")
         assert result == {
             "mock_0x0": "foo",
             "mock_0x3": "bar",
             "mock_0x8": "baz",
         }
 
-    def test_Batch_returns_error_if_parsing_elements_parse_past_end_of_input(
-        self, sequential_Batch
+    def test_block_returns_error_if_parsing_elements_parse_past_end_of_input(
+        self, sequential_block
     ):
 
         with pytest.raises(RuntimeError):
-            sequential_Batch.parse(b"12")
+            sequential_block.parse(b"12")
 
     @pytest.fixture
-    def addressed_Batch(self):
-        return Batch(
-            TestBatch.MockType(3, "foo"),
-            TestBatch.MockType(5, "bar"),
-            TestBatch.MockType(1, "baz"),
-            TestBatch.MockType(2, "qux", address=10),
+    def addressed_block(self):
+        return Block(
+            TestBlock.MockType(3, "foo"),
+            TestBlock.MockType(5, "bar"),
+            TestBlock.MockType(1, "baz"),
+            TestBlock.MockType(2, "qux", address=10),
         )
 
-    def test_Batch_gets_spacer_with_addressed_elements(self, addressed_Batch):
+    def test_block_gets_spacer_with_addressed_elements(self, addressed_block):
 
-        result = addressed_Batch.parse(b"\0" * 100)
+        result = addressed_block.parse(b"\0" * 100)
 
         assert result == {
             "mock_0x0": "foo",
@@ -168,12 +168,12 @@ class TestBatch:
             "mock_0xa": "qux",
         }
 
-    def test_nested_Batchs_produce_expected_results(self, addressed_Batch):
-        cnk = Batch(
-            addressed_Batch,
-            addressed_Batch("label"),
-            addressed_Batch("label", 40),
-            addressed_Batch(address=60),
+    def test_nested_blocks_produce_expected_results(self, addressed_block):
+        cnk = Block(
+            addressed_block,
+            addressed_block("label"),
+            addressed_block("label", 40),
+            addressed_block(address=60),
         )
 
         result = cnk.parse(bytes(range(256)))
