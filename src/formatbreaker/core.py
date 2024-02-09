@@ -1,6 +1,4 @@
-"""This module contains the basic Parser and Block (Parser container) code
-
-"""
+"""This module contains the basic Parser and Block (Parser container) code"""
 
 from __future__ import annotations
 from typing import ClassVar, Any
