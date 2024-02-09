@@ -17,57 +17,51 @@ class BitwiseBytes:
 
     def __init__(
         self,
-        value: bytes | BitwiseBytes,
-        start_byte: int = 0,
+        data_source: bytes | BitwiseBytes,
         start_bit: int = 0,
-        length: int | None = None,
+        stop_bit: int | None = None,
     ) -> None:
-        if isinstance(value, BitwiseBytes):
-            if (length is not None) or (start_bit > 0) or (start_byte > 0):
-                raise ValueError
-            self.data = value.data
-            self.start_byte = value.start_byte
-            self.start_bit = value.start_bit
-            self.stop_byte = value.stop_byte
-            self.stop_bit = value.stop_bit
-            self.length = value.length
-        elif isinstance(value, bytes):
-            self.data = value
+        """Constructs a BitwiseBytes object
 
-            if not isinstance(start_byte, int):
-                raise ValueError
-            if not isinstance(start_bit, int):
-                raise ValueError
-            if not (isinstance(length, int) or length is None):
-                raise ValueError
+        Parameters
+        ----------
+        data_source : bytes | BitwiseBytes
+            The object to create the new BitwiseBytes object from
+        start_bit : int, default 0
+            The address of the first bit in `data_source` to be included
+        bit_length : int | None, optional
+            The address of the first bit in `data_source` to be excluded
 
-            if start_byte > 0 and start_bit > 7:
-                raise IndexError
-            if start_byte < 0 or start_bit < 0:
-                raise IndexError
-
-            self.start_byte = start_byte + start_bit // 8
-            self.start_bit = start_bit % 8
-
-            if length is not None:
-                if length < 0:
-                    raise IndexError
-                self.length = length
-            else:
-                self.length = (
-                    len(value) * 8 - self.start_bit - self.start_byte * 8
-                )
-
-            last_bit = self.start_bit + self.start_byte * 8 + self.length
-
-            if last_bit > len(value) * 8:
-                raise IndexError
-
-            self.stop_bit = self.length + self.start_bit
-            self.stop_byte = self.stop_bit // 8 + self.start_byte
-            self.stop_bit = self.stop_bit % 8
+        """
+        if isinstance(data_source, BitwiseBytes):
+            data_length = data_source.length
+            self.data = data_source.data
+            self.start_bit = data_source.start_bit
+            self.start_byte = data_source.start_byte
+            self.stop_bit = data_source.start_bit
+            self.stop_byte = data_source.start_byte
+        elif isinstance(data_source, bytes):
+            data_length = len(data_source) * 8
+            self.data = data_source
+            self.start_bit = 0
+            self.start_byte = 0
+            self.stop_bit = 0
+            self.stop_byte = 0
         else:
-            raise ValueError
+            raise TypeError
+
+        validate_address_or_length(start_bit, 0, data_length)
+        if stop_bit is not None:
+            validate_address_or_length(stop_bit, 0, data_length)
+        else:
+            stop_bit = data_length
+
+        self.length = stop_bit - start_bit
+
+        self.start_byte = self.start_byte + (self.start_bit + start_bit) // 8
+        self.start_bit = (self.start_bit + start_bit) % 8
+        self.stop_byte = self.stop_byte + (self.stop_bit + stop_bit) // 8
+        self.stop_bit = (self.stop_bit + stop_bit) % 8
 
     @overload
     def __getitem__(self, item: int) -> bool: ...
@@ -76,16 +70,26 @@ class BitwiseBytes:
     def __getitem__(self, item: slice) -> BitwiseBytes: ...
 
     def __getitem__(self, item: int | slice) -> BitwiseBytes | bool:
+        """Returns a value for obj[addr] or obj[slice]
+
+        Parameters
+        ----------
+        item : int | slice
+            The location in the bits to be returned
+
+        Returns
+        -------
+        BitwiseBytes | bool
+            Boolean value of a single bit or a new BitwiseBytes for a slice
+        """
         if isinstance(item, slice):
             start, stop, step = item.indices(self.length)
             length = stop - start
             assert length >= 0
             if step != 1:
                 raise NotImplementedError
-            start_bit = (self.start_bit + start) % 8
-            start_byte = self.start_byte + (start + self.start_bit) // 8
 
-            return BitwiseBytes(self.data, start_byte, start_bit, length)
+            return BitwiseBytes(self.data, start, stop)
 
         elif isinstance(item, int):
             if item >= self.length or item < -self.length:
@@ -102,9 +106,23 @@ class BitwiseBytes:
             raise ValueError
 
     def __len__(self) -> int:
+        """Returns the length
+
+        Returns
+        -------
+        int
+            Length in bits
+        """
         return self.length
 
     def __bytes__(self) -> bytes:
+        """Returns the contained bits as bytes
+
+        Returns
+        -------
+        bytes
+            A right justified copy of the contents
+        """
         if self.length == 0:
             return b""
 
@@ -150,6 +168,13 @@ class BitwiseBytes:
         return result
 
     def to_bools(self) -> list[bool]:
+        """Converts to a list of booleans
+
+        Returns
+        -------
+        list[bool]
+            A list of the boolean values of the bits
+        """
         return [bool(self[i]) for i in range(self.length)]
 
     def __index__(self) -> int:
@@ -166,9 +191,9 @@ class BitwiseBytes:
 
 
 def validate_address_or_length(
-    address: int, amin: int = 0, amax: int | None = None
+    address: Any, amin: int = 0, amax: int | None = None
 ) -> None:
-    """_summary_
+    """Ensure that a value is a valid address
 
     Parameters
     ----------
@@ -177,7 +202,7 @@ def validate_address_or_length(
     amin : int, default 0
         The minimum valid value for `address`
     amax : int | None, optional
-        The maximum valid value for `address` if defined
+        The maximum valid value for `address`, if defined
 
     Raises
     ------
@@ -195,60 +220,71 @@ def validate_address_or_length(
             raise IndexError
 
 
-def uniquify_name(name: str, context: dict[str, Any]) -> str:
-    """This adds " N" to a string key if the key already exists in the
-        dictionary, where N is the first natural number that makes the
-        key unique
+def uniquify_label(label: str, context: dict[str, Any]) -> str:
+    """Makes a string key unique in a dictionary by adding a numeric suffix
 
-    Args:
-        name (string): A string
-        context (dictionary): Any dictionary
+    Makes a copy of `str`, optionally with " [N]" added where N is the first
+    natural number that forms an unused key in `context`
 
-    Returns:
-        string: A unique string key
+    Parameters
+    ----------
+    label : str
+        A string to be made unique
+    context : dict[str, Any]
+        An existing dictionary
+
+    Returns
+    -------
+    str
+        A string key that is unused in `context`
     """
-    new_name = name
+    new_label = label
     i = 1
-    while new_name in context:
-        new_name = name + " " + str(i)
+    while new_label in context:
+        new_label = label + " " + str(i)
         i = i + 1
-    return new_name
+    return new_label
 
 
 def spacer(
     data: bytes | BitwiseBytes,
     context: dict[str, Any],
-    addr: int,
-    spacer_size: int,
+    start_addr: int,
+    stop_addr: int,
 ) -> int:
-    """Reads a spacer of a certain length from the data, and saves it
-        to the context dictionary
+    """Reads a spacer into a context dictionary
 
-    Args:
-        data (bytes or BitwiseBytes): Data being parsed
-        context (dict): The dictionary where results are stored
-        abs_addr (int): The current absolute bit or byte address in the data
-        spacer_size (_type_): The size in bits or bytes of the spacer
+    Parameters
+    ----------
+    data : bytes | BitwiseBytes
+        Data to be parsed
+    context : dict[str, Any]
+        Where the results are stored
+    start_addr : int
+        The address of the first bit or byte in `data_source` to be included
+    stop_addr : int
+        The address of the first bit or byte in `data_source` to be excluded
 
-    Returns:
-        abs_addr (int): The bit or byte address following the spacer
+    Returns
+    -------
+    int
+        The address of the first bit or byte in `data_source` after the spacer
     """
-    end_addr = addr + spacer_size
+    
+    print(start_addr, stop_addr, len(data))
 
-    if addr < 0:
-        raise IndexError
-    if end_addr > len(data):
-        raise IndexError
-    if spacer_size == 0:
-        return end_addr
-    if spacer_size < 0:
-        raise ValueError
-    if spacer_size > 1:
-        spacer_name = "spacer_" + hex(addr) + "-" + hex(addr + spacer_size - 1)
+    validate_address_or_length(start_addr, 0, len(data))
+    validate_address_or_length(stop_addr, start_addr, len(data))
+
+    if stop_addr == start_addr:
+        return stop_addr
+
+    if stop_addr > 1 + start_addr:
+        spacer_label = "spacer_" + hex(start_addr) + "-" + hex(stop_addr - 1)
     else:
-        spacer_name = "spacer_" + hex(addr)
+        spacer_label = "spacer_" + hex(start_addr)
 
-    spacer_name = uniquify_name(spacer_name, context)
+    spacer_label = uniquify_label(spacer_label, context)
+    context[spacer_label] = bytes(data[start_addr:stop_addr])
 
-    context[spacer_name] = bytes(data[addr:end_addr])
-    return end_addr
+    return stop_addr

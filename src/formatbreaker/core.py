@@ -26,10 +26,10 @@ class Parser:
         return self.__label
 
     @_label.setter
-    def _label(self, name: str | None) -> None:
-        if name is not None and not isinstance(name, str):
-            raise TypeError("Parser names must be strings")
-        self.__label = name
+    def _label(self, label: str | None) -> None:
+        if label is not None and not isinstance(label, str):
+            raise TypeError("Parser labels must be strings")
+        self.__label = label
 
     @property
     def _address(self) -> int | None:
@@ -42,19 +42,19 @@ class Parser:
         self.__address = address
 
     def __init__(
-        self, name: str | None = None, address: int | None = None
+        self, label: str | None = None, address: int | None = None
     ) -> None:
         """Constructor for Parser
 
         Parameters
         ----------
-        name : str | None, default None
+        label : str | None, default None
             The key under which to store results during parsing.
         address : int | None, default None
             The address in the data which this instance should read from.
         """
         self._address = address
-        self._label = name
+        self._label = label
 
     def _parse(
         self,
@@ -62,7 +62,7 @@ class Parser:
         context: dict[str, Any],
         addr: int,
     ) -> int:
-        """Parses data at `addr` into the `context`
+        """Parses data into a dictionary
 
         Should be overridden by any subclass that reads data. Does
         nothing and returns `address` unchanged by default.
@@ -94,11 +94,11 @@ class Parser:
         context: dict[str, Any],
         addr: int,
     ) -> int:
-        """Store bytes up to the target location and then parse normally
+        """Reads to the target location and then parses normally
 
         Parameters
         ----------
-        data : bytes | util.BitwiseBytes
+        data : bytes | BitwiseBytes
             Data to be parsed
         context : dict[str, Any]
             Where the results are stored
@@ -120,12 +120,11 @@ class Parser:
             if addr > self._address:
                 raise FBError("Target address has already been passed")
             if addr < self._address:
-                spacer_size = self._address - addr
-                addr = util.spacer(data, context, addr, spacer_size)
+                addr = util.spacer(data, context, addr, self.__address)
         return self._parse(data, context, addr)
 
     def parse(self, data: bytes | util.BitwiseBytes) -> dict[str, Any]:
-        """Parse the provided data starting from address 0
+        """Parse the provided data from the beginning
 
         Parameters
         ----------
@@ -135,33 +134,33 @@ class Parser:
         Returns
         -------
         dict[str, Any]
-            A dictionary of field names and parsed values
+            A dictionary of field labels and parsed values
         """
         context: dict[str, Any] = {}
         self._space_and_parse(data, context, 0)
         return context
 
     def __call__(
-        self, name: str | None = None, address: int | None = None
+        self, label: str | None = None, address: int | None = None
     ) -> Parser:
-        """Copy the current instance with a new name or address
+        """Copy the current instance with a new label or address
 
         Parameters
         ----------
-        name : str | None, optional
-            Replacement name, if defined
+        label : str | None, optional
+            Replacement label, if defined
         address : int | None, optional
             Replacement address, if defined
 
         Returns
         -------
         Parser
-            A copy of the existing object with the name and address changed.
+            A copy of the existing object with the label and address changed.
         """
 
         b = copy(self)
-        if name is not None:
-            b._label = name
+        if label is not None:
+            b._label = label
         if address is not None:
             b._address = address
         return b
@@ -171,63 +170,73 @@ class Parser:
         context: dict[str, Any],
         data: Any,
         addr: int | None = None,
-        name: str | None = None,
+        label: str | None = None,
     ) -> None:
-        """Decode the parsed data and store the value in a unique name
+        """Decode the parsed data and store the value with a unique key
+        
+        If `label` is not provided, the code will use self.`label`. If
+        `self.label` is None, it will default to the class `_backup_label`
+        attribute.
 
-        Args:
-            context (dict): Where to store the value
-            data (object): The data to be decoded and stored
-            name (string, optional): The name to store the data under. If no
-                name is provided, the code will use the name stored in the
-                instance. If no name is stored in the instance, it will default
-                to the class _backup_label attribute.
-            addr: The location the data came from, used for unnamed fields
+        Parameters
+        ----------
+        context : dict[str, Any]
+            Where the results are stored
+        data : Any
+            The data to be decoded and stored
+        addr : int | None, optional
+            The location the data came from, used for unlabeled fields
+        label : str | None, optional
+            The label to store the data under.
+        """        
 
-        Raises:
-            RuntimeError: If no name can be found, an exception is raised
-        """
 
-        if name:
+        if label:
             pass
         elif self._label:
-            name = self._label
+            label = self._label
         elif self._backup_label:
             if addr is not None:
                 util.validate_address_or_length(addr)
-                name = self._backup_label + "_" + hex(addr)
+                label = self._backup_label + "_" + hex(addr)
             else:
-                name = self._backup_label
+                label = self._backup_label
         else:
-            raise RuntimeError("Attempted to store unnamed data")
+            raise RuntimeError("Attempted to store unlabeled data")
 
-        name = util.uniquify_name(name, context)
+        label = util.uniquify_label(label, context)
 
-        context[name] = self._decode(data)
+        context[label] = self._decode(data)
 
     def _update(self, context: dict[str, Any], data: dict[str, Any]):
-        """Decode a dictionary and store the new values in the provided
-            dictionary
+        """Decode a dictionary and update into another dictionary
 
-        Args:
-            context (dict): Where to store the value
-            data (dict): The data to be decoded and stored
-        """
-
+        Parameters
+        ----------
+        context : dict[str, Any]
+            Where to store the results
+        data : dict[str, Any]
+            The data to be decoded and stored
+        """        
         decoded_data = self._decode(data)
         for key in decoded_data:
-            self._store(context, decoded_data[key], name=key)
+            self._store(context, decoded_data[key], label=key)
 
     def _decode(self, data: Any) -> Any:
-        """A function for converting data to a different data type, run on the
-            parsed output. Defaults to passing through the data unchanged.
-            This should be overridden as needed by subclasses.
+        """Converts parsed data to another format
+        
+        Defaults to passing through the data unchanged.
+        This should be overridden as needed by subclasses.
+        
+        Parameters
+        ----------
+        data : Any
+            Input data from parsing and previous decoding steps
 
-        Args:
-            data (object): Input data
-
-        Returns:
-            object: Decoded output data
+        Returns
+        -------
+        Any
+            Decoded output data
         """
         return data
 
@@ -247,17 +256,19 @@ class Block(Parser):
         bitwise: bool = False,
         **kwargs: Any,
     ) -> None:
-        """Holds any number of Parser elements and parses them in order.
+        """Constructs a Block
 
-        Args:
-            *args (*Parser): Ordered list of the contained elements
-            relative (bool, optional): True if addresses for the contained
-                elements are relative to this Batch. Defaults to "true" if not
-                defined.
-
-        Raises:
-            ValueError: one of the elements provided is not a Parser
-        """
+        Parameters
+        ----------
+        *args : tuple[Parser, ...]
+            Ordered tuple of the Parsers this Block should hold
+        relative : bool, default True
+            If True, addresses for `self.elements` are relative to this Block.
+        bitwise : bool, default False
+            If True, `self.elements` is addressed and parsed bitwise
+        **kwargs : dict[str, Any]
+            Arguments to be passed to the superclass constructor
+        """        
         if not isinstance(relative, bool):
             raise TypeError
         if not isinstance(bitwise, bool):
@@ -279,16 +290,22 @@ class Block(Parser):
         context: dict[str, Any],
         addr: int,
     ) -> int:
-        """Parse the data using each element provided sequentially.
+        """Parse the data using each Parser sequentially.
 
-        Args:
-            data (bytes or BitwiseBytes): Data being parsed
-            context (dict): The dictionary where results are stored
-            addr (int): The current bit or byte address in the data
+        Parameters
+        ----------
+        data : bytes | BitwiseBytes
+            Data to be parsed
+        context : dict[str, Any]
+            Where the results are stored
+        addr : int
+            The bit or byte address in `data` where the data to be parse lies.
 
-        Returns:
-            addr (int): The bite or byte address after the parsed data
-        """
+        Returns
+        -------
+        int
+            The next bit or byte address after the parsed data
+        """   
         util.validate_address_or_length(addr)
 
         orig_addr = addr

@@ -2,13 +2,13 @@ import pytest
 from formatbreaker.util import *
 
 
-def test_uniquify_name():
+def test_uniquify_label():
     context = {}
-    assert uniquify_name("name", context) == "name"
-    context = {"name": 2}
-    assert uniquify_name("name", context) == "name 1"
-    context.update({"name 1": 2})
-    assert uniquify_name("name", context) == "name 2"
+    assert uniquify_label("label", context) == "label"
+    context = {"label": 2}
+    assert uniquify_label("label", context) == "label 1"
+    context.update({"label 1": 2})
+    assert uniquify_label("label", context) == "label 2"
 
 
 @pytest.mark.parametrize(
@@ -23,15 +23,15 @@ class TestSpacer:
     def test_spacer_generates_expected_dictionary_and_return_value(
         self, data, context
     ):
-        result = spacer(data, context, 1, 5)
+        result = spacer(data, context, 1, 6)
         assert result == 6
         assert context["spacer_0x1-0x5"] == bytes(data[1:6])
 
     def test_duplicate_spacer_generates_expected_dictionary_and_return_value(
         self, data, context
     ):
-        result = spacer(data, context, 1, 5)
-        result = spacer(data, context, 1, 5)
+        result = spacer(data, context, 1, 6)
+        result = spacer(data, context, 1, 6)
         assert result == 6
         assert context["spacer_0x1-0x5 1"] == bytes(data[1:6])
 
@@ -48,18 +48,18 @@ class TestSpacer:
     def test_negative_address_raises_error(self, data, context):
         with pytest.raises(IndexError):
             result = spacer(data, context, -1, 5)
+        with pytest.raises(IndexError):
+            result = spacer(data, context, 1, -1)
 
     def test_address_beyond_input_size_raises_error(self, data, context):
         with pytest.raises(IndexError):
             result = spacer(data, context, 1000, 1)
 
     def test_zero_length_spacer_is_no_op(self, data, context):
-        result = spacer(data, context, 1, 0)
+        result = spacer(data, context, 1, 1)
         assert result == 1
         assert context == {}
-
-        with pytest.raises(ValueError):
-            result = spacer(data, context, 1, -1)
+        
 
 
 class TestBitwiseBytes:
@@ -72,23 +72,23 @@ class TestBitwiseBytes:
         return BitwiseBytes(bytedata)
 
     def test_invalid_constructor_inputs_raise_error(self, bytedata):
-        with pytest.raises(ValueError):
-            BitwiseBytes(bytedata, 0, None, 1)
+        with pytest.raises(TypeError):
+            BitwiseBytes(bytedata, 1, "")
         with pytest.raises(IndexError):
-            BitwiseBytes(bytedata, 1, 9, 1)
+            BitwiseBytes(bytedata, -1, 1)
         with pytest.raises(IndexError):
-            BitwiseBytes(bytedata, 1, -1, 1)
+            BitwiseBytes(bytedata, 0, -1)
         with pytest.raises(IndexError):
-            BitwiseBytes(bytedata, -1, 1, 1)
+            BitwiseBytes(bytedata, 33, 1)
         with pytest.raises(IndexError):
-            BitwiseBytes(bytedata, 1, 1, -1)
-        with pytest.raises(ValueError):
-            BitwiseBytes(bytedata, 0, None, True)
+            BitwiseBytes(bytedata, 1, 33)
+        with pytest.raises(TypeError):
+            BitwiseBytes(bytedata, "", 1)
 
     def test_constructor_stop_bit_logic_ok(self, bytedata):
         with pytest.raises(IndexError):
-            BitwiseBytes(bytedata, 4, 0, 1)
-        assert bytes(BitwiseBytes(bytedata, 4, 0, 0)) == b""
+            BitwiseBytes(bytedata, 32, 33)
+        assert bytes(BitwiseBytes(bytedata, 32, 32)) == b""
 
     def test_converting_back_to_bytes_is_invariant(self, data, bytedata):
         assert bytes(data) == bytedata

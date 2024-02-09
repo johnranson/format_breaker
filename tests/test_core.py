@@ -2,23 +2,23 @@ import pytest
 from formatbreaker.core import Parser, FBError, Block
 
 
-@pytest.fixture
-def context():
-    return {}
-
-
 class TestParser:
 
     @pytest.fixture
     def default_dt(self):
         return Parser()
 
-    def test_constructor_defaults_to_no_label_and_address(self, default_dt):
+    @pytest.fixture
+    def context(self):
+        return {}
+
+    def test_constructor_defaults_to_no_label_and_address(
+        self, default_dt, context
+    ):
 
         assert default_dt._label is None
         assert default_dt._address is None
 
-        context = {}
         with pytest.raises(RuntimeError):
             default_dt._store(context, "123")
 
@@ -45,12 +45,16 @@ class TestParser:
     def labeled_dt(self):
         return Parser("label", 3)
 
-    def test_constructor_with_arguments_saves_label_and_address(self, labeled_dt):
+    def test_constructor_with_arguments_saves_label_and_address(
+        self, labeled_dt
+    ):
         assert labeled_dt._label == "label"
         assert labeled_dt._address == 3
         assert labeled_dt._decode("123") == "123"
 
-    def test_copy_works_after_constructor_with_label_and_address(self, labeled_dt):
+    def test_copy_works_after_constructor_with_label_and_address(
+        self, labeled_dt
+    ):
         copy_test_type = labeled_dt()
 
         assert copy_test_type is not labeled_dt
