@@ -12,7 +12,7 @@ from formatbreaker import util
 class ByteFlag(Byte):
     """Reads 1 byte as a boolean"""
 
-    true_value: int | None
+    _true_value: int | None
     _backup_label = "Flag"
 
     def __init__(
@@ -22,13 +22,13 @@ class ByteFlag(Byte):
         if isinstance(true_value, bytes):
             if len(true_value) != 1:
                 raise ValueError
-            self.true_value = true_value[0]
+            self._true_value = true_value[0]
         elif isinstance(true_value, int):
-            self.true_value = true_value
-            if self.true_value < 0 or self.true_value > 255:
+            self._true_value = true_value
+            if self._true_value < 0 or self._true_value > 255:
                 raise ValueError
         elif true_value is None:
-            self.true_value = None
+            self._true_value = None
         else:
             raise TypeError
 
@@ -37,8 +37,8 @@ class ByteFlag(Byte):
     def _decode(self, data: bytes) -> bool:
         if not data[0]:
             return False
-        if self.true_value:
-            if data[0] != self.true_value:
+        if self._true_value:
+            if data[0] != self._true_value:
                 raise FBError
         return True
 
@@ -48,11 +48,11 @@ class BitConst(Bit):
     _backup_label = "Const"
 
     def __init__(self, value: bool, **kwargs: Any) -> None:
-        self.value = bool(value)
+        self._value = bool(value)
         super().__init__(**kwargs)
 
     def _decode(self, data: bool):
-        return self.value == super()._decode(data)
+        return self._value == super()._decode(data)
 
 
 class BitWordConst(BitWord):
@@ -60,14 +60,14 @@ class BitWordConst(BitWord):
     _backup_label = "Const"
 
     def __init__(
-        self, value: bytes | util.BitwiseBytes, length: int, **kwargs: Any
+        self, value: bytes | util.BitwiseBytes, bit_length: int, **kwargs: Any
     ) -> None:
 
-        self.value = int(util.BitwiseBytes(value, 0, 0, length))
-        super().__init__(length, **kwargs)
+        self._value = int(util.BitwiseBytes(value, 0, bit_length))
+        super().__init__(bit_length, **kwargs)
 
     def _decode(self, data: bool) -> bool:
-        return self.value == super()._decode(data)
+        return self._value == super()._decode(data)
 
 
 class Int32L(Bytes):

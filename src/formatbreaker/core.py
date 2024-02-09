@@ -1,4 +1,6 @@
-"""This module contains the basic Parsers with no decoding"""
+"""This module contains the basic Parser and Block (Parser container) code
+
+"""
 
 from __future__ import annotations
 from typing import ClassVar, Any
@@ -116,11 +118,11 @@ class Parser:
             The current address in `data` is past the `self.address`
         """
         util.validate_address_or_length(addr)
-        if self._address:
+        if self._address is not None:
             if addr > self._address:
                 raise FBError("Target address has already been passed")
             if addr < self._address:
-                addr = util.spacer(data, context, addr, self.__address)
+                addr = util.spacer(data, context, addr, self._address)
         return self._parse(data, context, addr)
 
     def parse(self, data: bytes | util.BitwiseBytes) -> dict[str, Any]:
@@ -173,9 +175,9 @@ class Parser:
         label: str | None = None,
     ) -> None:
         """Decode the parsed data and store the value with a unique key
-        
-        If `label` is not provided, the code will use self.`label`. If
-        `self.label` is None, it will default to the class `_backup_label`
+
+        If `label` is not provided, the code will use `self._label`. If
+        `self._label` is None, it will default to the class `_backup_label`
         attribute.
 
         Parameters
@@ -188,8 +190,7 @@ class Parser:
             The location the data came from, used for unlabeled fields
         label : str | None, optional
             The label to store the data under.
-        """        
-
+        """
 
         if label:
             pass
@@ -217,17 +218,17 @@ class Parser:
             Where to store the results
         data : dict[str, Any]
             The data to be decoded and stored
-        """        
+        """
         decoded_data = self._decode(data)
         for key in decoded_data:
             self._store(context, decoded_data[key], label=key)
 
     def _decode(self, data: Any) -> Any:
         """Converts parsed data to another format
-        
+
         Defaults to passing through the data unchanged.
         This should be overridden as needed by subclasses.
-        
+
         Parameters
         ----------
         data : Any
@@ -268,7 +269,7 @@ class Block(Parser):
             If True, `self.elements` is addressed and parsed bitwise
         **kwargs : dict[str, Any]
             Arguments to be passed to the superclass constructor
-        """        
+        """
         if not isinstance(relative, bool):
             raise TypeError
         if not isinstance(bitwise, bool):
@@ -305,7 +306,7 @@ class Block(Parser):
         -------
         int
             The next bit or byte address after the parsed data
-        """   
+        """
         util.validate_address_or_length(addr)
 
         orig_addr = addr

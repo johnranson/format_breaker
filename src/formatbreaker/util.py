@@ -270,7 +270,7 @@ def spacer(
     int
         The address of the first bit or byte in `data_source` after the spacer
     """
-    
+
     print(start_addr, stop_addr, len(data))
 
     validate_address_or_length(start_addr, 0, len(data))

@@ -1,3 +1,9 @@
+"""This module contains Parsers that operate on the raw bit/bytestream
+
+If a Parser can be implemented in a subclass of an existing Parser 
+by only implementing __init__ and _decode, it should not go here.
+"""
+
 from __future__ import annotations
 from typing import Any
 from formatbreaker.core import Parser, FBError
@@ -37,9 +43,9 @@ class Bytes(Parser):
 
     _backup_label = "Bytes"
 
-    def __init__(self, length: int, **kwargs: Any) -> None:
-        util.validate_address_or_length(length, 1)
-        self.length = length
+    def __init__(self, byte_length: int, **kwargs: Any) -> None:
+        util.validate_address_or_length(byte_length, 1)
+        self._byte_length = byte_length
         super().__init__(**kwargs)
 
     def _parse(
@@ -50,11 +56,11 @@ class Bytes(Parser):
     ) -> int:
         bitwise = isinstance(data, util.BitwiseBytes)
 
-        length = self.length
+        length = self._byte_length
         if bitwise:
             length = length * 8
 
-        end_addr = addr + self.length
+        end_addr = addr + self._byte_length
 
         if len(data) < end_addr:
             raise FBError("Insufficient bytes available to parse Bytes")
@@ -75,7 +81,7 @@ class VarBytes(Parser):
     def __init__(self, length_key: str, **kwargs: Any) -> None:
         if not isinstance(length_key, str):
             raise TypeError
-        self.length_key = length_key
+        self._length_key = length_key
         super().__init__(**kwargs)
 
     def _parse(
@@ -86,7 +92,7 @@ class VarBytes(Parser):
     ) -> int:
         bitwise = isinstance(data, util.BitwiseBytes)
 
-        length = context[self.length_key]
+        length = context[self._length_key]
         if bitwise:
             length = length * 8
         end_addr = addr + length
@@ -167,10 +173,10 @@ class BitFlags(Parser):
 
     _backup_label = "BitFlags"
 
-    def __init__(self, length: int, **kwargs: Any) -> None:
+    def __init__(self, bit_length: int, **kwargs: Any) -> None:
 
-        util.validate_address_or_length(length, 1)
-        self.length = length
+        util.validate_address_or_length(bit_length, 1)
+        self._bit_length = bit_length
         super().__init__(**kwargs)
 
     def _parse(
@@ -183,7 +189,7 @@ class BitFlags(Parser):
         if not bitwise:
             raise RuntimeError
 
-        end_addr = addr + self.length
+        end_addr = addr + self._bit_length
 
         if len(data) < end_addr:
             raise FBError("Insufficient bytes available to parse Bytes")
@@ -198,12 +204,12 @@ class BitFlags(Parser):
 class BitWord(Parser):
     """Reads a number of bits from the data"""
 
-    length: int
+    _bit_length: int
     _backup_label = "BitWord"
 
-    def __init__(self, length: int, **kwargs: Any) -> None:
-        util.validate_address_or_length(length, 1)
-        self.length = length
+    def __init__(self, bit_length: int, **kwargs: Any) -> None:
+        util.validate_address_or_length(bit_length, 1)
+        self._bit_length = bit_length
         super().__init__(**kwargs)
 
     def _parse(
@@ -216,7 +222,7 @@ class BitWord(Parser):
         if not bitwise:
             raise RuntimeError
 
-        end_addr = addr + self.length
+        end_addr = addr + self._bit_length
 
         if len(data) < end_addr:
             raise FBError("Insufficient bytes available to parse Bytes")
