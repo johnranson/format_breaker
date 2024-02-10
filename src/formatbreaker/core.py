@@ -226,8 +226,6 @@ class Block(Parser):
             raise TypeError
         if not isinstance(bitwise, bool):
             raise TypeError
-        if not isinstance(args, tuple):
-            raise TypeError
         if not all(isinstance(item, Parser) for item in args):
             raise TypeError
 

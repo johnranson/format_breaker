@@ -1,5 +1,6 @@
 import pytest
 from formatbreaker.core import Parser, FBError, Block
+from formatbreaker.util import BitwiseBytes
 
 
 class TestParser:
@@ -82,6 +83,10 @@ class TestParser:
 
         assert result == 3
         assert context == {}
+    
+    def test_parsing_wrong_address_raises_error(self, labeled_dt, context):
+        with pytest.raises(IndexError):
+            labeled_dt._parse(b"123567", context, 4)
 
     def test_space_and_parse_raises_error_past_required_address(
         self, labeled_dt, context
@@ -125,6 +130,15 @@ class TestBlock:
 
     def test_empty_block_returns_empty_dict_on_parsing(self, empty_block):
         assert empty_block.parse(b"abc") == {}
+        
+    def test_block_constructor_fails_with_bad_data(self, empty_block):
+        with pytest.raises(TypeError):
+            Block("test")
+        with pytest.raises(TypeError):
+            Block(relative="true")
+        with pytest.raises(TypeError):
+            Block(bitwise="true")
+
 
     @pytest.fixture
     def sequential_block(self):
@@ -133,6 +147,7 @@ class TestBlock:
             TestBlock.MockType(5, "bar"),
             TestBlock.MockType(1, "baz"),
         )
+        
 
     def test_block_returns_parsing_results_from_all_elements(
         self, sequential_block
@@ -143,6 +158,11 @@ class TestBlock:
             "mock_0x3": "bar",
             "mock_0x8": "baz",
         }
+        
+    def test_bytewise_block_raises_error_with_bits(self, sequential_block):
+        with pytest.raises(ValueError):
+            sequential_block.parse(BitwiseBytes(b'12354234562'))
+            
 
     def test_block_returns_error_if_parsing_elements_parse_past_end_of_input(
         self, sequential_block
@@ -150,6 +170,59 @@ class TestBlock:
 
         with pytest.raises(RuntimeError):
             sequential_block.parse(b"12")
+            
+    def test_non_relative_bitwise_block_parsing_bytewise_data_raises_error(self):
+        with pytest.raises(RuntimeError):
+            Block(relative=False, bitwise=True).parse(b'123')
+            
+    def test_non_relative_bitwise_block_parsing_bitwise_data_succeeds(self):
+        Block(relative=False, bitwise=True).parse(BitwiseBytes(b'123'))
+    
+    @pytest.fixture
+    def bitwise_sequential_block(self):
+        return Block(
+            TestBlock.MockType(3, "foo"),
+            TestBlock.MockType(4, "bar"),
+            TestBlock.MockType(1, "baz"),
+            bitwise=True
+        )
+        
+    def test_bitwise_block_works_on_bytewise_data(self, bitwise_sequential_block):
+        result = bitwise_sequential_block.parse(b"12354234562")
+        assert result == {
+            "mock_0x0": "foo",
+            "mock_0x3": "bar",
+            "mock_0x7": "baz",
+        }
+
+    def test_bitwise_block_works_on_bitwise_data(self, bitwise_sequential_block):
+        result = bitwise_sequential_block.parse(BitwiseBytes(b"12354234562"))
+        assert result == {
+            "mock_0x0": "foo",
+            "mock_0x3": "bar",
+            "mock_0x7": "baz",
+        }
+        
+    @pytest.fixture
+    def bitwise_sequential_block_length_9(self):
+        return Block(
+            TestBlock.MockType(3, "foo"),
+            TestBlock.MockType(5, "bar"),
+            TestBlock.MockType(1, "baz"),
+            bitwise=True
+        )
+
+    def test_bitwise_block_parsing_bytewise_data_ending_off_byte_boundary_raises_error(self, bitwise_sequential_block_length_9):
+        with pytest.raises(RuntimeError):
+            bitwise_sequential_block_length_9.parse(b"12354234562")
+
+    def test_bitwise_block_parsing_bitwise_data_ending_off_byte_boundary_succeeds(self, bitwise_sequential_block_length_9):
+        result = bitwise_sequential_block_length_9.parse(BitwiseBytes(b"12354234562"))
+        assert result == {
+            "mock_0x0": "foo",
+            "mock_0x3": "bar",
+            "mock_0x8": "baz",
+        }
 
     @pytest.fixture
     def addressed_block(self):

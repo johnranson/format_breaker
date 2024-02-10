@@ -84,6 +84,8 @@ class TestBitwiseBytes:
             BitwiseBytes(bytedata, 1, 33)
         with pytest.raises(TypeError):
             BitwiseBytes(bytedata, "", 1)
+        with pytest.raises(TypeError):
+            BitwiseBytes("", 1, 1)
 
     def test_constructor_stop_bit_logic_ok(self, bytedata):
         with pytest.raises(IndexError):
@@ -97,6 +99,10 @@ class TestBitwiseBytes:
         copy = BitwiseBytes(data)
         assert copy == data
         assert copy is not data
+        
+    def test_wrong_index_type_raises_error(self, data):
+        with pytest.raises(ValueError):
+            data['asdf']
 
     def test_slices_with_identical_contents_equal(self, data):
         assert data[0:8] == data[24:32]
@@ -155,6 +161,11 @@ class TestBitwiseBytes:
 
     def test_int_conversion_works(self, data):
         assert int(data) == 4279173375
+        
+    def test_int_conversion_on_empty_failse(self):
+        empty = BitwiseBytes(b'')
+        with pytest.raises(RuntimeError):
+            int(empty)
 
     def test_too_high_subscript_raises_error(self, data):
         with pytest.raises(IndexError):
