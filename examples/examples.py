@@ -20,7 +20,7 @@ pp.pprint(fmt.parse(dat))
 
 
 dat = bytes([5, 1, 2, 3, 4, 5])
-fmt = fb.Chunk(fb.Int8L("length"), fb.VarBytes("bytes", length_key="length"))
+fmt = fb.Chunk(fb.Int8L("length"), fb.VarBytes("bytes", source="length"))
 pp.pprint(fmt.parse(dat))
 
 integer_val = 14768

@@ -1,7 +1,7 @@
 """This module contains the basic Parser and Block (Parser container) code"""
 
 from __future__ import annotations
-from typing import ClassVar, Any
+from typing import ClassVar, Any, override
 from copy import copy
 from formatbreaker import util
 
@@ -235,6 +235,7 @@ class Block(Parser):
 
         super().__init__(**kwargs)
 
+    @override
     def _parse(
         self,
         data: bytes | util.BitwiseBytes,

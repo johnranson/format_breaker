@@ -1,11 +1,11 @@
 """Decoding Parsers
 
-This module contains Parser subclasses that only implement `_decode()` and
-optionally `__init__()`.
+The classes in this module add functionality to existing parsers by adding
+`_decode()` logic. They only implement _decode (and _init, if needed.)
 """
 
 from __future__ import annotations
-from typing import Any
+from typing import Any, override
 import struct
 from uuid import UUID
 from formatbreaker.basictypes import Bit, BitWord, Bytes, Byte
@@ -19,6 +19,7 @@ class ByteFlag(Byte):
     _true_value: int | None
     _backup_label = "Flag"
 
+    @override
     def __init__(self, true_value: bytes | int | None = None, **kwargs: Any) -> None:
         """
         Args:
@@ -43,6 +44,7 @@ class ByteFlag(Byte):
 
         super().__init__(**kwargs)
 
+    @override
     def _decode(self, data: bytes) -> bool:
         if not data[0]:
             return False
@@ -57,10 +59,12 @@ class BitConst(Bit):
 
     _backup_label = "Const"
 
+    @override
     def __init__(self, value: bool, **kwargs: Any) -> None:
         self._value = bool(value)
         super().__init__(**kwargs)
 
+    @override
     def _decode(self, data: bool) -> bool:
         if self._value != super()._decode(data):
             raise FBError("Constant not matched")
@@ -72,6 +76,7 @@ class BitWordConst(BitWord):
 
     _backup_label = "Const"
 
+    @override
     def __init__(
         self, value: bytes | util.BitwiseBytes, bit_length: int, **kwargs: Any
     ) -> None:
@@ -79,6 +84,7 @@ class BitWordConst(BitWord):
         self._value = util.BitwiseBytes(value, 0, bit_length)
         super().__init__(bit_length, **kwargs)
 
+    @override
     def _decode(self, data: util.BitwiseBytes) -> int:
         if self._value != data:
             raise FBError("Constant not matched")
@@ -90,6 +96,7 @@ class BitFlags(BitWord):
 
     _backup_label = "Const"
 
+    @override
     def _decode(self, data: util.BitwiseBytes) -> list[bool]:
         return data.to_bools()
 
@@ -99,9 +106,11 @@ class Int32L(Bytes):
 
     _backup_label = "Int32"
 
+    @override
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(4, **kwargs)
 
+    @override
     def _decode(self, data: bytes) -> int:
         """Decodes a signed integer from 4 little endian bytes.
 
@@ -119,9 +128,11 @@ class UInt32L(Bytes):
 
     _backup_label = "UInt32"
 
+    @override
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(4, **kwargs)
 
+    @override
     def _decode(self, data: bytes) -> int:
         """Decodes a unsigned integer from 4 little endian bytes.
 
@@ -139,9 +150,11 @@ class Int16L(Bytes):
 
     _backup_label = "Int16"
 
+    @override
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(2, **kwargs)
 
+    @override
     def _decode(self, data: bytes) -> int:
         """Decodes a signed integer from 2 little endian bytes.
 
@@ -159,9 +172,11 @@ class UInt16L(Bytes):
 
     _backup_label = "UInt16"
 
+    @override
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(2, **kwargs)
 
+    @override
     def _decode(self, data: bytes) -> int:
         """Decodes a unsigned integer from 2 little endian bytes.
 
@@ -179,6 +194,7 @@ class Int8(Byte):
 
     _backup_label = "Int8"
 
+    @override
     def _decode(self, data: bytes) -> int:
         """Decodes a signed integer from one byte.
 
@@ -196,6 +212,7 @@ class UInt8(Byte):
 
     _backup_label = "UInt8"
 
+    @override
     def _decode(self, data: bytes) -> int:
         """Decodes an unsigned integer from one byte.
 
@@ -213,6 +230,7 @@ class Float32L(Bytes):
 
     _backup_label = "Float32"
 
+    @override
     def __init__(self, **kwargs: Any) -> None:
         """Decodes a single precision floating point number from little endian
         bytes.
@@ -227,6 +245,7 @@ class Float32L(Bytes):
 
         super().__init__(4, **kwargs)
 
+    @override
     def _decode(self, data: bytes) -> float:
         return struct.unpack("<f", data)[0]
 
@@ -236,9 +255,11 @@ class Float64L(Bytes):
 
     _backup_label = "Float64"
 
+    @override
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(8, **kwargs)
 
+    @override
     def _decode(self, data: bytes) -> float:
         """Decodes a double precision floating point number from little endian
         bytes.
@@ -259,9 +280,11 @@ class UuidL(Bytes):
 
     _backup_label = "UUID"
 
+    @override
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(16, **kwargs)
 
+    @override
     def _decode(self, data: bytes) -> UUID:
         """Decodes a UUID with little endian words.
 
@@ -279,9 +302,11 @@ class UuidB(Bytes):
 
     _backup_label = "UUID"
 
+    @override
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(16, **kwargs)
 
+    @override
     def _decode(self, data: bytes) -> UUID:
         """Decodes a UUID with big endian words.
 

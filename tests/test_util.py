@@ -11,18 +11,14 @@ def test_uniquify_label():
     assert uniquify_label("label", context) == "label 2"
 
 
-@pytest.mark.parametrize(
-    "data", [bytes(range(128)), BitwiseBytes(bytes(range(16)))]
-)
+@pytest.mark.parametrize("data", [bytes(range(128)), BitwiseBytes(bytes(range(16)))])
 class TestSpacer:
 
     @pytest.fixture
     def context(self):
         return {}
 
-    def test_spacer_generates_expected_dictionary_and_return_value(
-        self, data, context
-    ):
+    def test_spacer_generates_expected_dictionary_and_return_value(self, data, context):
         result = spacer(data, context, 1, 6)
         assert result == 6
         assert context["spacer_0x1-0x5"] == bytes(data[1:6])
@@ -59,7 +55,6 @@ class TestSpacer:
         result = spacer(data, context, 1, 1)
         assert result == 1
         assert context == {}
-        
 
 
 class TestBitwiseBytes:
@@ -99,10 +94,10 @@ class TestBitwiseBytes:
         copy = BitwiseBytes(data)
         assert copy == data
         assert copy is not data
-        
+
     def test_wrong_index_type_raises_error(self, data):
         with pytest.raises(ValueError):
-            data['asdf']
+            data["asdf"]
 
     def test_slices_with_identical_contents_equal(self, data):
         assert data[0:8] == data[24:32]
@@ -161,9 +156,9 @@ class TestBitwiseBytes:
 
     def test_int_conversion_works(self, data):
         assert int(data) == 4279173375
-        
+
     def test_int_conversion_on_empty_failse(self):
-        empty = BitwiseBytes(b'')
+        empty = BitwiseBytes(b"")
         with pytest.raises(RuntimeError):
             int(empty)
 

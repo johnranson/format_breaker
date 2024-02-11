@@ -6,7 +6,7 @@ by only implementing __init__ and _decode, it should not go here.
 """
 
 from __future__ import annotations
-from typing import Any
+from typing import Any, override
 from formatbreaker.core import Parser, FBError
 from formatbreaker import util
 
@@ -16,6 +16,7 @@ class Byte(Parser):
 
     _backup_label = "Byte"
 
+    @override
     def _parse(
         self,
         data: bytes | util.BitwiseBytes,
@@ -56,7 +57,8 @@ class Bytes(Parser):
 
     _backup_label = "Bytes"
 
-    def __init__(self, byte_length: int, **kwargs: Any) -> None:
+    @override
+    def __init__(self, byte_length: int, *args: Any, **kwargs: Any) -> None:
         """
         Args:
             byte_length:The length to read in bytes, when parsing.
@@ -64,8 +66,9 @@ class Bytes(Parser):
         """
         util.validate_address_or_length(byte_length, 1)
         self._byte_length = byte_length
-        super().__init__(**kwargs)
+        super().__init__(*args, **kwargs)
 
+    @override
     def _parse(
         self,
         data: bytes | util.BitwiseBytes,
@@ -90,7 +93,7 @@ class Bytes(Parser):
         if bitwise:
             length = length * 8
 
-        end_addr = addr + self._byte_length
+        end_addr = addr + length
 
         if len(data) < end_addr:
             raise FBError("Insufficient bytes available to parse Bytes")
@@ -108,18 +111,20 @@ class VarBytes(Parser):
 
     _backup_label = "VarBytes"
 
-    def __init__(self, length_key: str, **kwargs: Any) -> None:
+    @override
+    def __init__(self, *args: Any, source: str, **kwargs: Any) -> None:
         """
         Args:
             length_key: The key to read from the context to get the number of
                 bytes to read while parsing
             **kwargs: Arguments to be passed to the superclass constructor
         """
-        if not isinstance(length_key, str):
+        if not isinstance(source, str):
             raise TypeError
-        self._length_key = length_key
-        super().__init__(**kwargs)
+        self._length_key = source
+        super().__init__(*args, **kwargs)
 
+    @override
     def _parse(
         self,
         data: bytes | util.BitwiseBytes,
@@ -161,6 +166,7 @@ class PadToAddress(Parser):
     def __call__(self, name: str | None = None, address: int | None = None) -> Parser:
         raise NotImplementedError
 
+    @override
     def __init__(self, address: int) -> None:
         """
         Args:
@@ -174,6 +180,7 @@ class Remnant(Parser):
 
     _backup_label = "Remnant"
 
+    @override
     def _parse(
         self,
         data: bytes | util.BitwiseBytes,
@@ -206,6 +213,7 @@ class Bit(Parser):
 
     _backup_label = "Bit"
 
+    @override
     def _parse(
         self,
         data: bytes | util.BitwiseBytes,
@@ -246,7 +254,8 @@ class BitWord(Parser):
     _bit_length: int
     _backup_label = "BitWord"
 
-    def __init__(self, bit_length: int, **kwargs: Any) -> None:
+    @override
+    def __init__(self, bit_length: int, *args: Any, **kwargs: Any) -> None:
         """
         Args:
             bit_length: The length to read in bits, when parsing.
@@ -254,8 +263,9 @@ class BitWord(Parser):
         """
         util.validate_address_or_length(bit_length, 1)
         self._bit_length = bit_length
-        super().__init__(**kwargs)
+        super().__init__(*args, **kwargs)
 
+    @override
     def _parse(
         self,
         data: bytes | util.BitwiseBytes,
@@ -289,6 +299,7 @@ class BitWord(Parser):
 
         return end_addr
 
+    @override
     def _decode(self, data: util.BitwiseBytes) -> int:
         """Decodes the bits into an unsigned integer
 
