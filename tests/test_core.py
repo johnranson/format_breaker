@@ -1,6 +1,6 @@
 import pytest
 from formatbreaker.core import Parser, FBError, Block
-from formatbreaker.util import BitwiseBytes
+from formatbreaker.util import BitwiseBytes, Context
 
 
 class TestParser:
@@ -11,7 +11,7 @@ class TestParser:
 
     @pytest.fixture
     def context(self):
-        return {}
+        return Context()
 
     def test_constructor_defaults_to_no_label_and_address(self, default_dt, context):
 

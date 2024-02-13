@@ -53,7 +53,7 @@ class Parser:
     def _parse(
         self,
         data: bytes | util.BitwiseBytes,
-        context: dict[str, Any],
+        context: util.Context,
         addr: int,
     ) -> int:
         """Parses data into a dictionary
@@ -80,7 +80,7 @@ class Parser:
     def _space_and_parse(
         self,
         data: bytes | util.BitwiseBytes,
-        context: dict[str, Any],
+        context: util.Context,
         addr: int,
     ) -> int:
         """Reads to the target location and then parses normally
@@ -105,7 +105,7 @@ class Parser:
                 addr = util.spacer(data, context, addr, self._address)
         return self._parse(data, context, addr)
 
-    def parse(self, data: bytes | util.BitwiseBytes) -> dict[str, Any]:
+    def parse(self, data: bytes | util.BitwiseBytes) -> dict:
         """Parse the provided data from the beginning
 
         Args:
@@ -114,9 +114,9 @@ class Parser:
         Returns:
             A dictionary of field labels and parsed values
         """
-        context: dict[str, Any] = {}
+        context: util.Context = util.Context()
         self._space_and_parse(data, context, 0)
-        return context
+        return dict(context)
 
     def __call__(self, label: str | None = None, address: int | None = None) -> Parser:
         """Copy the current instance with a new label or address
@@ -138,7 +138,7 @@ class Parser:
 
     def _store(
         self,
-        context: dict[str, Any],
+        context: util.Context,
         data: Any,
         addr: int | None = None,
         label: str | None = None,
@@ -170,11 +170,9 @@ class Parser:
         else:
             raise RuntimeError("Attempted to store unlabeled data")
 
-        label = util.uniquify_label(label, context)
-
         context[label] = self._decode(data)
 
-    def _update(self, context: dict[str, Any], data: dict[str, Any]):
+    def _update(self, context: util.Context, data: util.Context):
         """Decode a dictionary and update into another dictionary
 
         Args:
@@ -207,12 +205,14 @@ class Block(Parser):
     _bitwise: bool
     _relative: bool
     _elements: tuple[Parser, ...]
+    _optional: bool
 
     def __init__(
         self,
         *args: Parser,
         relative: bool = True,
         bitwise: bool = False,
+        optional: bool = False,
         **kwargs: Any,
     ) -> None:
         """
@@ -231,6 +231,7 @@ class Block(Parser):
 
         self._relative = relative
         self._bitwise = bitwise
+        self._optional = optional
         self._elements = args
 
         super().__init__(**kwargs)
@@ -239,7 +240,7 @@ class Block(Parser):
     def _parse(
         self,
         data: bytes | util.BitwiseBytes,
-        context: dict[str, Any],
+        context: util.Context,
         addr: int,
     ) -> int:
         """Parse the data using each Parser sequentially.
@@ -273,12 +274,20 @@ class Block(Parser):
             data = data[addr:]
             addr = 0
 
-        out_context = {}
+        if self._label:
+            out_context = util.Context()
+        else:
+            out_context = util.Context(context)
 
-        for element in self._elements:
-            addr = element._space_and_parse(data, out_context, addr)
-            if addr > len(data):
-                raise RuntimeError
+        try:
+            for element in self._elements:
+                addr = element._space_and_parse(data, out_context, addr)
+                if addr > len(data):
+                    raise RuntimeError
+        except FBError:
+            if self._optional:
+                return orig_addr
+            raise
 
         if convert_bit_addr_to_bytes:
             if addr % 8:
@@ -289,8 +298,12 @@ class Block(Parser):
             addr = orig_addr + addr
 
         if self._label:
-            self._store(context, out_context)
+            self._store(context, dict(out_context))
         else:
-            self._update(context, out_context)
+            out_context.update_ext()
 
         return addr
+
+
+def Optional(*args, **kwargs):
+    return Block(*args, optional=True, **kwargs)

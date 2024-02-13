@@ -3,6 +3,7 @@
 from __future__ import annotations
 from typing import Any, overload
 from operator import add
+from collections.abc import MutableMapping
 
 
 class BitwiseBytes:
@@ -193,30 +194,9 @@ def validate_address_or_length(
             raise IndexError
 
 
-def uniquify_label(label: str, context: dict[str, Any]) -> str:
-    """Makes a string key unique in a dictionary by adding a numeric suffix
-
-    Makes a copy of `str`, optionally with " [N]" added where N is the first
-    natural number that forms an unused key in `context`
-
-    Args:
-        label: A string to be made unique
-        context: An existing dictionary
-
-    Returns:
-        A string key that is unused in `context`
-    """
-    new_label = label
-    i = 1
-    while new_label in context:
-        new_label = label + " " + str(i)
-        i = i + 1
-    return new_label
-
-
 def spacer(
     data: bytes | BitwiseBytes,
-    context: dict[str, Any],
+    context: Context,
     start_addr: int,
     stop_addr: int,
 ) -> int:
@@ -246,7 +226,63 @@ def spacer(
     else:
         spacer_label = "spacer_" + hex(start_addr)
 
-    spacer_label = uniquify_label(spacer_label, context)
     context[spacer_label] = bytes(data[start_addr:stop_addr])
 
     return stop_addr
+
+
+class Context(MutableMapping):
+    __local_context: dict
+    __ext_context: dict | Context
+
+    def __init__(
+        self,
+        ext_context: Context | dict | None = None,
+        *,
+        local_context: dict | None = None,
+    ):
+        if local_context is not None:
+            self.__local_context = local_context
+        else:
+            self.__local_context = {}
+        if ext_context is not None:
+            self.__ext_context = ext_context
+        else:
+            self.__ext_context = {}
+
+    def __getitem__(self, key):
+        if key in self.__local_context:
+            return self.__local_context[key]
+        return self.__ext_context[key]
+
+    def __setitem__(self, key, value):
+        new_key = key
+        i = 1
+        while new_key in self:
+            new_key = key + " " + str(i)
+            i = i + 1
+        print(new_key)
+        self.__local_context[new_key] = value
+
+    def __delitem__(self, key):
+        del self.__local_context[key]
+
+    def __len__(self):
+        return len(self.__local_context) + len(self.__ext_context)
+
+    def __repr__(self):
+        return repr((self.__ext_context, self.__local_context))
+
+    def __iter__(self):
+        yield from self.__ext_context
+        yield from self.__local_context
+
+    def clear(self):
+        self.__local_context = {}
+
+    def copy(self):
+        return Context(self.__ext_context, local_context=self.__local_context.copy())
+
+    def update_ext(self):
+        self.__ext_context.update(self.__local_context)
+        self.__local_context.clear()

@@ -2,21 +2,12 @@ import pytest
 from formatbreaker.util import *
 
 
-def test_uniquify_label():
-    context = {}
-    assert uniquify_label("label", context) == "label"
-    context = {"label": 2}
-    assert uniquify_label("label", context) == "label 1"
-    context.update({"label 1": 2})
-    assert uniquify_label("label", context) == "label 2"
-
-
 @pytest.mark.parametrize("data", [bytes(range(128)), BitwiseBytes(bytes(range(16)))])
 class TestSpacer:
 
     @pytest.fixture
     def context(self):
-        return {}
+        return Context()
 
     def test_spacer_generates_expected_dictionary_and_return_value(self, data, context):
         result = spacer(data, context, 1, 6)

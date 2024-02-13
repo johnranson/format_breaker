@@ -20,7 +20,7 @@ class Byte(Parser):
     def _parse(
         self,
         data: bytes | util.BitwiseBytes,
-        context: dict[str, Any],
+        context: util.Context,
         addr: int,
     ) -> int:
         """Reads a single byte from `addr` in `data` and stores the byte in an
@@ -72,7 +72,7 @@ class Bytes(Parser):
     def _parse(
         self,
         data: bytes | util.BitwiseBytes,
-        context: dict[str, Any],
+        context: util.Context,
         addr: int,
     ) -> int:
         """Reads `self._byte_length` many bytes from `addr` in `data` and
@@ -128,7 +128,7 @@ class VarBytes(Parser):
     def _parse(
         self,
         data: bytes | util.BitwiseBytes,
-        context: dict[str, Any],
+        context: util.Context,
         addr: int,
     ) -> int:
         """Reads `context[self.length_key]` many bytes from `addr` in `data`
@@ -184,7 +184,7 @@ class Remnant(Parser):
     def _parse(
         self,
         data: bytes | util.BitwiseBytes,
-        context: dict[str, Any],
+        context: util.Context,
         addr: int,
     ) -> int:
         """Reads all data from `addr` to the end of `data` and stores the
@@ -217,7 +217,7 @@ class Bit(Parser):
     def _parse(
         self,
         data: bytes | util.BitwiseBytes,
-        context: dict[str, Any],
+        context: util.Context,
         addr: int,
     ) -> int:
         """Reads a single bit from `addr` in `data` and stores the bit in an
@@ -269,7 +269,7 @@ class BitWord(Parser):
     def _parse(
         self,
         data: bytes | util.BitwiseBytes,
-        context: dict[str, Any],
+        context: util.Context,
         addr: int,
     ) -> int:
         """Reads `self._bit_length` many bits from `addr` in `data` and
