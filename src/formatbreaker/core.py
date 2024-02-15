@@ -277,7 +277,7 @@ class Block(Parser):
         if self._label:
             out_context = util.Context()
         else:
-            out_context = util.Context(context)
+            out_context = context.new_child()
 
         try:
             for element in self._elements:
