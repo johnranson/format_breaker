@@ -7,8 +7,13 @@ by only implementing __init__ and _decode, it should not go here.
 
 from __future__ import annotations
 from typing import Any, override
-from formatbreaker.core import Parser, FBError
-from formatbreaker import util
+from formatbreaker.core import Parser
+from formatbreaker.util import (
+    DataSource,
+    Context,
+    validate_address_or_length,
+    BitwiseBytes,
+)
 
 
 class Byte(Parser):
@@ -17,12 +22,7 @@ class Byte(Parser):
     _backup_label = "Byte"
 
     @override
-    def _parse(
-        self,
-        data: bytes | util.BitwiseBytes,
-        context: util.Context,
-        addr: int,
-    ) -> int:
+    def _parse(self, data: DataSource, context: Context) -> None:
         """Reads a single byte from `addr` in `data` and stores the byte in an
         entry in `context`
 
@@ -31,25 +31,10 @@ class Byte(Parser):
             context: Where results are stored including prior results in the
                 same containing Block
             addr: The bit or byte address in `data` where the byte to be parsed lies.
-
-        Returns:
-            The next bit or byte address after the parsed byte
         """
-        bitwise = isinstance(data, util.BitwiseBytes)
-        if bitwise:
-            length = 8
-        else:
-            length = 1
-        end_addr = addr + length
-
-        if len(data) < end_addr:
-            raise FBError("No byte available to parse Byte")
-
-        result = bytes(data[addr:end_addr])
-
-        self._store(context, result, addr=addr)
-
-        return end_addr
+        addr = data.current_address()
+        result = data.read_bytes(1)
+        self._store(context, result, addr)
 
 
 class Bytes(Parser):
@@ -64,17 +49,12 @@ class Bytes(Parser):
             byte_length:The length to read in bytes, when parsing.
             **kwargs: Arguments to be passed to the superclass constructor
         """
-        util.validate_address_or_length(byte_length, 1)
+        validate_address_or_length(byte_length, 1)
         self._byte_length = byte_length
         super().__init__(*args, **kwargs)
 
     @override
-    def _parse(
-        self,
-        data: bytes | util.BitwiseBytes,
-        context: util.Context,
-        addr: int,
-    ) -> int:
+    def _parse(self, data: DataSource, context: Context) -> None:
         """Reads `self._byte_length` many bytes from `addr` in `data` and
         stores the bytes in an entry in `context`
 
@@ -83,26 +63,11 @@ class Bytes(Parser):
             context: Where results are stored including prior results in the
                 same containing Block
             addr: The bit or byte address in `data` where the bytes to be parsed lie.
-
-        Returns:
-            The next bit or byte address after the parsed bytes
         """
-        bitwise = isinstance(data, util.BitwiseBytes)
 
-        length = self._byte_length
-        if bitwise:
-            length = length * 8
-
-        end_addr = addr + length
-
-        if len(data) < end_addr:
-            raise FBError("Insufficient bytes available to parse Bytes")
-
-        result = bytes(data[addr:end_addr])
-
-        self._store(context, result, addr=addr)
-
-        return end_addr
+        addr = data.current_address()
+        result = data.read_bytes(self._byte_length)
+        self._store(context, result, addr)
 
 
 class VarBytes(Parser):
@@ -125,12 +90,7 @@ class VarBytes(Parser):
         super().__init__(*args, **kwargs)
 
     @override
-    def _parse(
-        self,
-        data: bytes | util.BitwiseBytes,
-        context: util.Context,
-        addr: int,
-    ) -> int:
+    def _parse(self, data: DataSource, context: Context) -> None:
         """Reads `context[self.length_key]` many bytes from `addr` in `data`
         and stores the bytes in an entry in `context`
 
@@ -143,21 +103,10 @@ class VarBytes(Parser):
         Returns:
             The next bit or byte address after the parsed bytes
         """
-        bitwise = isinstance(data, util.BitwiseBytes)
-
+        addr = data.current_address()
         length = context[self._length_key]
-        if bitwise:
-            length = length * 8
-        end_addr = addr + length
-
-        if len(data) < end_addr:
-            raise FBError("Insufficient bytes available to parse VarBytes")
-
-        result = bytes(data[addr:end_addr])
-
-        self._store(context, result, addr=addr)
-
-        return end_addr
+        result = data.read_bytes(length)
+        self._store(context, result, addr)
 
 
 class PadToAddress(Parser):
@@ -181,12 +130,7 @@ class Remnant(Parser):
     _backup_label = "Remnant"
 
     @override
-    def _parse(
-        self,
-        data: bytes | util.BitwiseBytes,
-        context: util.Context,
-        addr: int,
-    ) -> int:
+    def _parse(self, data: DataSource, context: Context) -> None:
         """Reads all data from `addr` to the end of `data` and stores the
         data in an entry in `context`
 
@@ -199,13 +143,10 @@ class Remnant(Parser):
         Returns:
             The length of `data`
         """
-        end_addr = len(data)
+        addr = data.current_address()
+        result = data.read_bytes()
 
-        result = bytes(data[addr:end_addr])
-
-        self._store(context, result, addr=addr)
-
-        return end_addr
+        self._store(context, result, addr)
 
 
 class Bit(Parser):
@@ -214,12 +155,7 @@ class Bit(Parser):
     _backup_label = "Bit"
 
     @override
-    def _parse(
-        self,
-        data: bytes | util.BitwiseBytes,
-        context: util.Context,
-        addr: int,
-    ) -> int:
+    def _parse(self, data: DataSource, context: Context) -> None:
         """Reads a single bit from `addr` in `data` and stores the bit in an
         entry in `context`
 
@@ -232,20 +168,11 @@ class Bit(Parser):
         Returns:
             The next bit address after the parsed byte
         """
-        bitwise = isinstance(data, util.BitwiseBytes)
-        if not bitwise:
-            raise RuntimeError
+        addr = data.current_address()
 
-        end_addr = addr + 1
+        result = data.read_bits(1)
 
-        if len(data) < end_addr:
-            raise FBError("No bit available to parse Bit")
-
-        result = data[addr]
-
-        self._store(context, result, addr=addr)
-
-        return end_addr
+        self._store(context, result, addr)
 
 
 class BitWord(Parser):
@@ -261,17 +188,12 @@ class BitWord(Parser):
             bit_length: The length to read in bits, when parsing.
             **kwargs: Arguments to be passed to the superclass constructor
         """
-        util.validate_address_or_length(bit_length, 1)
+        validate_address_or_length(bit_length, 1)
         self._bit_length = bit_length
         super().__init__(*args, **kwargs)
 
     @override
-    def _parse(
-        self,
-        data: bytes | util.BitwiseBytes,
-        context: util.Context,
-        addr: int,
-    ) -> int:
+    def _parse(self, data: DataSource, context: Context) -> None:
         """Reads `self._bit_length` many bits from `addr` in `data` and
         stores the bits as BitwiseBytes in an entry in `context`
 
@@ -284,23 +206,12 @@ class BitWord(Parser):
         Returns:
             The next bit address after the parsed bits
         """
-        bitwise = isinstance(data, util.BitwiseBytes)
-        if not bitwise:
-            raise RuntimeError
-
-        end_addr = addr + self._bit_length
-
-        if len(data) < end_addr:
-            raise FBError("Insufficient bytes available to parse Bytes")
-
-        result = data[addr:end_addr]
-
+        addr = data.current_address()
+        result = data.read_bits(self._bit_length)
         self._store(context, result, addr=addr)
 
-        return end_addr
-
     @override
-    def _decode(self, data: util.BitwiseBytes) -> int:
+    def _decode(self, data: BitwiseBytes) -> int:
         """Decodes the bits into an unsigned integer
 
         Args:

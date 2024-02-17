@@ -1,50 +1,97 @@
 import pytest
 from formatbreaker.util import *
+from io import BytesIO
 
 
-@pytest.mark.parametrize("data", [bytes(range(128)), BitwiseBytes(bytes(range(16)))])
+@pytest.fixture
+def raw_data():
+    return bytes(range(256)) * 16
+
+@pytest.fixture
+def stream_data(raw_data):
+    return DataSource(source=BytesIO(raw_data))
+
+@pytest.fixture
+def bytes_data(raw_data):
+    return DataSource(source=raw_data)
+
+class TestDataSource():
+    @pytest.mark.parametrize('fix', ['stream_data', 'bytes_data'])
+    def test_basic_bit_reading(self, fix, request, raw_data):
+        data = request.getfixturevalue(fix)
+        
+        b = data.read_bits(1025)
+        c = data.read_bits(1025)
+        d = data.read_bits()
+
+        assert b == BitwiseBytes(raw_data, 0, 1025)
+        assert c == BitwiseBytes(raw_data, 1025, 2050)
+        assert d == BitwiseBytes(raw_data, 2050)
+
+    @pytest.mark.parametrize('fix', ['stream_data', 'bytes_data'])
+    def test_basic_byte_reading(self, fix, request, raw_data):
+        data = request.getfixturevalue(fix)
+        
+        b = data.read_bytes(1025)
+        c = data.read_bytes(1025)
+        d = data.read_bytes()
+
+        assert b == raw_data[0:1025]
+        assert c == raw_data[1025:2050]
+        assert d == raw_data[2050:]
+
+
+@pytest.fixture
+def spacer_stream_data():
+    dat = bytes(range(128))
+    return DataSource(source=BytesIO(dat))
+
+@pytest.fixture
+def spacer_bytes_data():
+    dat = bytes(range(256)) * 16
+    return DataSource(source=dat)
+
+
+@pytest.mark.parametrize("raw_data", [bytes(range(128))])
 class TestSpacer:
 
     @pytest.fixture
     def context(self):
         return Context()
 
-    def test_spacer_generates_expected_dictionary_and_return_value(self, data, context):
-        result = spacer(data, context, 1, 6)
-        assert result == 6
-        assert context["spacer_0x1-0x5"] == bytes(data[1:6])
+    def test_spacer_generates_expected_dictionary_and_return_value(self, raw_data, context):
+        data = DataSource(source=raw_data)
+        data.read(1)
+        spacer(data, context, 6)
+        assert context["spacer_0x1-0x5"] == bytes(raw_data[1:6])
 
     def test_duplicate_spacer_generates_expected_dictionary_and_return_value(
-        self, data, context
+        self, raw_data, context
     ):
-        result = spacer(data, context, 1, 6)
-        result = spacer(data, context, 1, 6)
-        assert result == 6
-        assert context["spacer_0x1-0x5 1"] == bytes(data[1:6])
+        data = DataSource(source=raw_data)
+        context["spacer_0x1-0x5"] = bytes(raw_data[1:6])
+        data.read(1)
+        spacer(data, context, 6)
+        assert context["spacer_0x1-0x5 1"] == bytes(raw_data[1:6])
 
-    def test_spacer_works_with_entire_input(self, data, context):
-        result = spacer(data, context, 0, 128)
-        assert result == 128
-        print(context)
-        assert context["spacer_0x0-0x7f"] == bytes(data)
+    def test_spacer_works_with_entire_input(self, raw_data, context):
+        data = DataSource(source=raw_data)
+        spacer(data, context, 128)
+        assert context["spacer_0x0-0x7f"] == bytes(raw_data)
 
-    def test_length_one_beyond_input_size_raises_error(self, data, context):
+    def test_length_one_beyond_input_size_raises_error(self, raw_data, context):
+        data = DataSource(source=raw_data)
+        with pytest.raises(FBNoDataError):
+            spacer(data, context, 129)
+
+    def test_negative_address_raises_error(self, raw_data, context):
+        data = DataSource(source=raw_data)
         with pytest.raises(IndexError):
-            result = spacer(data, context, 0, 129)
+            spacer(data, context, -1)
 
-    def test_negative_address_raises_error(self, data, context):
-        with pytest.raises(IndexError):
-            result = spacer(data, context, -1, 5)
-        with pytest.raises(IndexError):
-            result = spacer(data, context, 1, -1)
-
-    def test_address_beyond_input_size_raises_error(self, data, context):
-        with pytest.raises(IndexError):
-            result = spacer(data, context, 1000, 1)
-
-    def test_zero_length_spacer_is_no_op(self, data, context):
-        result = spacer(data, context, 1, 1)
-        assert result == 1
+    def test_zero_length_spacer_is_no_op(self, raw_data, context):
+        data = DataSource(source=raw_data)
+        spacer(data, context, 0)
         assert context == {}
 
 
@@ -184,3 +231,4 @@ class TestBitwiseBytes:
         assert len(empty_bb) == 0
         assert bytes(empty_bb) == b""
         assert not empty_bb.to_bools()
+

@@ -1,6 +1,6 @@
 import pytest
-from formatbreaker.core import Parser, FBError, Block
-from formatbreaker.util import BitwiseBytes, Context
+from formatbreaker.core import Parser, Block
+from formatbreaker.util import BitwiseBytes, Context, FBError, DataSource, FBNoDataError
 
 
 class TestParser:
@@ -73,34 +73,34 @@ class TestParser:
         }
 
     def test_default_parser_performs_no_op(self, labeled_dt, context):
-        result = labeled_dt._parse(b"123567", context, 3)
+        labeled_dt._parse(DataSource(b"123567"), context)
 
-        assert result == 3
         assert context == {}
 
-    def test_parsing_wrong_address_raises_error(self, labeled_dt, context):
-        with pytest.raises(IndexError):
-            labeled_dt._parse(b"123567", context, 4)
 
     def test_space_and_parse_raises_error_past_required_address(
         self, labeled_dt, context
     ):
-        with pytest.raises(FBError):
-            result = labeled_dt._space_and_parse(b"123456", context, 5)
+        data = DataSource(source=b"123567")
+        data.read(5)
+        with pytest.raises(IndexError):
+            labeled_dt._space_and_parse(data, context)
 
     def test_space_and_parse_does_not_create_spacer_if_at_address(
         self, labeled_dt, context
     ):
-        result = labeled_dt._space_and_parse(b"123456", context, 3)
-        assert result == 3
+        data = DataSource(source=b"123567")
+        data.read(3)
+        labeled_dt._space_and_parse(data, context)
         assert not bool(context)
 
     def test_space_and_parse_creates_spacer_if_before_required_address(
         self, labeled_dt, context
     ):
-        result = labeled_dt._space_and_parse(b"123456", context, 1)
+        data = DataSource(source=b"123567")
+        data.read(1)
+        labeled_dt._space_and_parse(data, context)
 
-        assert result == 3
         assert context["spacer_0x1-0x2"] == b"23"
 
 
@@ -113,10 +113,10 @@ class TestBlock:
             self.length = length
             super().__init__(**kwargs)
 
-        def _parse(self, data, context, addr):
-            end_addr = addr + self.length
-            self._store(context, self.value, addr=addr)
-            return end_addr
+        def _parse(self, data, context):
+            addr = data.current_address()
+            data.read(self.length)
+            self._store(context, self.value, addr)
 
     @pytest.fixture
     def empty_block(self):
@@ -150,22 +150,19 @@ class TestBlock:
         }
 
     def test_bytewise_block_raises_error_with_bits(self, sequential_block):
-        with pytest.raises(ValueError):
+        with pytest.raises(NotImplementedError):
             sequential_block.parse(BitwiseBytes(b"12354234562"))
 
     def test_block_returns_error_if_parsing_elements_parse_past_end_of_input(
         self, sequential_block
     ):
 
-        with pytest.raises(RuntimeError):
+        with pytest.raises(FBNoDataError):
             sequential_block.parse(b"12")
 
     def test_non_relative_bitwise_block_parsing_bytewise_data_raises_error(self):
         with pytest.raises(RuntimeError):
             Block(relative=False, bitwise=True).parse(b"123")
-
-    def test_non_relative_bitwise_block_parsing_bitwise_data_succeeds(self):
-        Block(relative=False, bitwise=True).parse(BitwiseBytes(b"123"))
 
     @pytest.fixture
     def bitwise_sequential_block(self):

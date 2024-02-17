@@ -3,15 +3,8 @@
 from __future__ import annotations
 from typing import ClassVar, Any, override
 from copy import copy
+from io import BufferedIOBase
 from formatbreaker import util
-
-
-class FBError(Exception):
-    """This error should be raised when a Parser fails to parse the data
-    because it doesn't fit expectations. The idea is that optional data
-    types can fail to be parsed, and the top level code will catch the
-    exception and try something else.
-    """
 
 
 class Parser:
@@ -50,12 +43,7 @@ class Parser:
         self._address = address
         self._label = label
 
-    def _parse(
-        self,
-        data: bytes | util.BitwiseBytes,
-        context: util.Context,
-        addr: int,
-    ) -> int:
+    def _parse(self, data: util.DataSource, context: util.Context) -> None:
         """Parses data into a dictionary
 
         Should be overridden by any subclass that reads data. Does
@@ -65,47 +53,22 @@ class Parser:
             data: Data being parsed
             context: Where results are stored including prior results in the same
                 containing Block
-            addr: The bit or byte address in `data` where the Data being parsed lies.
-
-        Returns:
-            The next bit or byte address after the parsed data
         """
         # pylint: disable=unused-argument
-        util.validate_address_or_length(addr)
-        if self._address is not None and self._address != addr:
-            raise IndexError
 
-        return addr
-
-    def _space_and_parse(
-        self,
-        data: bytes | util.BitwiseBytes,
-        context: util.Context,
-        addr: int,
-    ) -> int:
+    def _space_and_parse(self, data: util.DataSource, context: util.Context) -> None:
         """Reads to the target location and then parses normally
 
         Args:
             data: Data being parsed
             context: Where results are stored including prior results in the same
                 containing Block
-            addr: The current bit or byte address in `data`
-
-        Returns:
-            The next bite or byte address after the parsed data
-
-        Raises:
-            FBError: The current address in `data` is past the `self.address`
         """
-        util.validate_address_or_length(addr)
         if self._address is not None:
-            if addr > self._address:
-                raise FBError("Target address has already been passed")
-            if addr < self._address:
-                addr = util.spacer(data, context, addr, self._address)
-        return self._parse(data, context, addr)
+            util.spacer(data, context, self._address)
+        self._parse(data, context)
 
-    def parse(self, data: bytes | util.BitwiseBytes) -> dict:
+    def parse(self, data: bytes | BufferedIOBase) -> dict:
         """Parse the provided data from the beginning
 
         Args:
@@ -114,8 +77,9 @@ class Parser:
         Returns:
             A dictionary of field labels and parsed values
         """
-        context: util.Context = util.Context()
-        self._space_and_parse(data, context, 0)
+        context = util.Context()
+        with util.DataSource(source=data) as datasource:
+            self._space_and_parse(datasource, context)
         return dict(context)
 
     def __call__(self, label: str | None = None, address: int | None = None) -> Parser:
@@ -239,10 +203,9 @@ class Block(Parser):
     @override
     def _parse(
         self,
-        data: bytes | util.BitwiseBytes,
+        data: util.DataSource,
         context: util.Context,
-        addr: int,
-    ) -> int:
+    ) -> None:
         """Parse the data using each Parser sequentially.
 
         Args:
@@ -250,59 +213,21 @@ class Block(Parser):
             context: Where results are stored including prior results in the same
                 containing Block
             addr: The bit or byte address in `data` where the Data being parsed lies.
-
-        Returns:
-            The next bit or byte address after the parsed data
         """
-        util.validate_address_or_length(addr)
 
-        orig_addr = addr
+        with data.make_child() as new_data:
+            if self._label:
+                out_context = util.Context()
+            else:
+                out_context = context.new_child()
 
-        bitwisedata = isinstance(data, util.BitwiseBytes)
-
-        if bitwisedata and not self._bitwise:
-            raise ValueError
-
-        convert_bit_addr_to_bytes = False
-        if self._bitwise and not bitwisedata:
-            convert_bit_addr_to_bytes = True
-            data = util.BitwiseBytes(data[addr:])
-            if not self._relative:
-                raise RuntimeError
-
-        elif self._relative:
-            data = data[addr:]
-            addr = 0
-
-        if self._label:
-            out_context = util.Context()
-        else:
-            out_context = context.new_child()
-
-        try:
             for element in self._elements:
-                addr = element._space_and_parse(data, out_context, addr)
-                if addr > len(data):
-                    raise RuntimeError
-        except FBError:
-            if self._optional:
-                return orig_addr
-            raise
-
-        if convert_bit_addr_to_bytes:
-            if addr % 8:
-                raise RuntimeError
-            addr = orig_addr + addr // 8
-
-        elif self._relative:
-            addr = orig_addr + addr
+                element._space_and_parse(new_data, out_context)
 
         if self._label:
             self._store(context, dict(out_context))
         else:
             out_context.update_ext()
-
-        return addr
 
 
 def Optional(*args, **kwargs):

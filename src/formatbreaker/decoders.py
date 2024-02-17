@@ -9,7 +9,6 @@ from typing import Any, override
 import struct
 from uuid import UUID
 from formatbreaker.basictypes import Bit, BitWord, Bytes, Byte
-from formatbreaker.core import FBError
 from formatbreaker import util
 
 
@@ -50,7 +49,7 @@ class ByteFlag(Byte):
             return False
         if self._true_value:
             if data[0] != self._true_value:
-                raise FBError
+                raise util.FBError
         return True
 
 
@@ -67,7 +66,7 @@ class BitConst(Bit):
     @override
     def _decode(self, data: bool) -> bool:
         if self._value != super()._decode(data):
-            raise FBError("Constant not matched")
+            raise util.FBError("Constant not matched")
         return self._value
 
 
@@ -87,7 +86,7 @@ class BitWordConst(BitWord):
     @override
     def _decode(self, data: util.BitwiseBytes) -> int:
         if self._value != data:
-            raise FBError("Constant not matched")
+            raise util.FBError("Constant not matched")
         return int(self._value)
 
 

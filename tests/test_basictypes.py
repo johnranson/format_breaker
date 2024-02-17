@@ -1,8 +1,8 @@
 import pytest
-from formatbreaker.core import FBError, Block
+from formatbreaker.core import Block
 from formatbreaker.basictypes import *
 from formatbreaker.decoders import UInt8
-from formatbreaker.util import BitwiseBytes
+from formatbreaker.util import AddrType, BitwiseBytes, FBError
 
 
 class TestByte:
@@ -10,9 +10,7 @@ class TestByte:
     def test_reads_single_byte(self):
         assert Byte("name", 0).parse(b"5") == {"name": b"5"}
 
-    @pytest.mark.parametrize(
-        "bytedata,bytesize", [(b"506", 1), (BitwiseBytes(b"506"), 8)]
-    )
+    @pytest.mark.parametrize("bytedata,bytesize", [(b"506", 1)])
     def test_reads_positional_bytes(self, bytedata, bytesize):
         assert Byte("name", 0).parse(bytedata) == {"name": bytes(bytedata[0:bytesize])}
         assert Byte("name", bytesize).parse(bytedata)["name"] == bytes(
@@ -57,9 +55,7 @@ class TestBytes:
         with pytest.raises(FBError):
             Bytes(4).parse(b"506")
 
-    @pytest.mark.parametrize(
-        "bytedata,bytesize", [(b"506", 1), (BitwiseBytes(b"506"), 8)]
-    )
+    @pytest.mark.parametrize("bytedata,bytesize", [(b"506", 1)])
     def test_reads_positional_bytes(self, bytedata, bytesize):
         assert Bytes(1, "name", 0).parse(bytedata) == {
             "name": bytes(bytedata[0:bytesize])
@@ -138,13 +134,12 @@ class TestVarBytes:
             bitwise=True,
         )
 
-    def test_read_bitwise(self, test_block_bitwise):
-        assert test_block_bitwise.parse(b"\x01\x0F\xF0")["results"] == b"\xFF"
-
 
 def test_pad_to_address_bytewise():
+    data = DataSource(source=b"123456")
+    data.read_bytes(1)
     context = {}
-    assert PadToAddress(5)._space_and_parse(b"123456", context, 1) == 5
+    PadToAddress(5)._space_and_parse(data, context)
     assert context == {"spacer_0x1-0x4": b"2345"}
 
 
@@ -154,20 +149,36 @@ def test_pad_to_address_not_callable():
 
 
 def test_pad_to_address_bitwise():
+    data = DataSource(source=b"\xF0")
     context = {}
-    assert PadToAddress(5)._space_and_parse(BitwiseBytes(b"\xF0"), context, 1) == 5
-    print(context)
-    assert context == {"spacer_0x1-0x4": b"\x0e"}
+    with data.new_child(addr_type=AddrType.BIT) as new_data:
+        new_data.read(1)
+        PadToAddress(5)._space_and_parse(new_data, context)
+        PadToAddress(8)._space_and_parse(new_data, context)
+
+    assert context == {"spacer_0x1-0x4": b"\x0e", "spacer_0x5-0x7": b"\x00"}
 
 
 def test_remnant_bytewise():
+    data = DataSource(source=b"123456")
+    data.read_bytes(1)
     context = {}
-    assert Remnant("name", 1)._parse(b"123456", context, 1) == 6
+    Remnant("name", 1)._parse(data, context)
     assert context == {"name": b"23456"}
 
 
+# def test_remnant_bytewise():
+#     data = DataSource(source=b"\xF0")
+#     data.read_bytes(1)
+#     context = {}
+#     Remnant("name", 1)._parse(data, context)
+#     assert context == {"name": b"23456"}
+
+
 def test_remant_bitwise():
+    data = DataSource(source=b"\xF0")
     context = {}
-    assert Remnant("name", 1)._parse(BitwiseBytes(b"\xF0"), context, 1) == 8
-    print(context)
+    with data.new_child(addr_type=AddrType.BIT) as new_data:
+        new_data.read(1)
+        Remnant("name", 1)._parse(new_data, context)
     assert context == {"name": b"\x70"}
