@@ -7,9 +7,9 @@ from operator import add
 from collections import ChainMap, deque
 from collections.abc import Collection
 import bisect
-from enum import Enum
+from enum import StrEnum
 
-AddrType = Enum("AddrType", ["BIT", "BYTE", "BYTE_STRICT", "PARENT"])
+AddrType = StrEnum("AddrType", ["BIT", "BYTE", "BYTE_STRICT", "PARENT"])
 
 
 class FBError(Exception):
@@ -476,7 +476,7 @@ class DataSource(ChainMap):
         Returns:
             The child DataSource
         """
-        child: DataSource = super().new_child()
+        child: DataSource = self.__class__({}, *self.maps)
         child._source = self._source
         child._buffers = self._buffers
         child._bounds = self._bounds

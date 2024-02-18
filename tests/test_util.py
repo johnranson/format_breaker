@@ -1,37 +1,44 @@
+# pylint: disable=missing-module-docstring
+# pylint: disable=missing-class-docstring
+# pylint: disable=missing-function-docstring
+
 import pytest
-from formatbreaker.util import *
 from io import BytesIO
+import formatbreaker.util as fu
 
 
 @pytest.fixture
 def raw_data():
     return bytes(range(256)) * 16
 
+
 @pytest.fixture
 def stream_data(raw_data):
-    return DataSource(source=BytesIO(raw_data))
+    return fu.DataSource(source=BytesIO(raw_data))
+
 
 @pytest.fixture
 def bytes_data(raw_data):
-    return DataSource(source=raw_data)
+    return fu.DataSource(source=raw_data)
 
-class TestDataSource():
-    @pytest.mark.parametrize('fix', ['stream_data', 'bytes_data'])
+
+class TestDataSource:
+    @pytest.mark.parametrize("fix", ["stream_data", "bytes_data"])
     def test_basic_bit_reading(self, fix, request, raw_data):
         data = request.getfixturevalue(fix)
-        
+
         b = data.read_bits(1025)
         c = data.read_bits(1025)
         d = data.read_bits()
 
-        assert b == BitwiseBytes(raw_data, 0, 1025)
-        assert c == BitwiseBytes(raw_data, 1025, 2050)
-        assert d == BitwiseBytes(raw_data, 2050)
+        assert b == fu.BitwiseBytes(raw_data, 0, 1025)
+        assert c == fu.BitwiseBytes(raw_data, 1025, 2050)
+        assert d == fu.BitwiseBytes(raw_data, 2050)
 
-    @pytest.mark.parametrize('fix', ['stream_data', 'bytes_data'])
+    @pytest.mark.parametrize("fix", ["stream_data", "bytes_data"])
     def test_basic_byte_reading(self, fix, request, raw_data):
         data = request.getfixturevalue(fix)
-        
+
         b = data.read_bytes(1025)
         c = data.read_bytes(1025)
         d = data.read_bytes()
@@ -44,12 +51,13 @@ class TestDataSource():
 @pytest.fixture
 def spacer_stream_data():
     dat = bytes(range(128))
-    return DataSource(source=BytesIO(dat))
+    return fu.DataSource(source=BytesIO(dat))
+
 
 @pytest.fixture
 def spacer_bytes_data():
     dat = bytes(range(256)) * 16
-    return DataSource(source=dat)
+    return fu.DataSource(source=dat)
 
 
 @pytest.mark.parametrize("raw_data", [bytes(range(128))])
@@ -57,41 +65,43 @@ class TestSpacer:
 
     @pytest.fixture
     def context(self):
-        return Context()
+        return fu.Context()
 
-    def test_spacer_generates_expected_dictionary_and_return_value(self, raw_data, context):
-        data = DataSource(source=raw_data)
+    def test_spacer_generates_expected_dictionary_and_return_value(
+        self, raw_data, context
+    ):
+        data = fu.DataSource(source=raw_data)
         data.read(1)
-        spacer(data, context, 6)
+        fu.spacer(data, context, 6)
         assert context["spacer_0x1-0x5"] == bytes(raw_data[1:6])
 
     def test_duplicate_spacer_generates_expected_dictionary_and_return_value(
         self, raw_data, context
     ):
-        data = DataSource(source=raw_data)
+        data = fu.DataSource(source=raw_data)
         context["spacer_0x1-0x5"] = bytes(raw_data[1:6])
         data.read(1)
-        spacer(data, context, 6)
+        fu.spacer(data, context, 6)
         assert context["spacer_0x1-0x5 1"] == bytes(raw_data[1:6])
 
     def test_spacer_works_with_entire_input(self, raw_data, context):
-        data = DataSource(source=raw_data)
-        spacer(data, context, 128)
+        data = fu.DataSource(source=raw_data)
+        fu.spacer(data, context, 128)
         assert context["spacer_0x0-0x7f"] == bytes(raw_data)
 
     def test_length_one_beyond_input_size_raises_error(self, raw_data, context):
-        data = DataSource(source=raw_data)
-        with pytest.raises(FBNoDataError):
-            spacer(data, context, 129)
+        data = fu.DataSource(source=raw_data)
+        with pytest.raises(fu.FBNoDataError):
+            fu.spacer(data, context, 129)
 
     def test_negative_address_raises_error(self, raw_data, context):
-        data = DataSource(source=raw_data)
+        data = fu.DataSource(source=raw_data)
         with pytest.raises(IndexError):
-            spacer(data, context, -1)
+            fu.spacer(data, context, -1)
 
     def test_zero_length_spacer_is_no_op(self, raw_data, context):
-        data = DataSource(source=raw_data)
-        spacer(data, context, 0)
+        data = fu.DataSource(source=raw_data)
+        fu.spacer(data, context, 0)
         assert context == {}
 
 
@@ -102,34 +112,34 @@ class TestBitwiseBytes:
 
     @pytest.fixture
     def data(self, bytedata):
-        return BitwiseBytes(bytedata)
+        return fu.BitwiseBytes(bytedata)
 
     def test_invalid_constructor_inputs_raise_error(self, bytedata):
         with pytest.raises(TypeError):
-            BitwiseBytes(bytedata, 1, "")
+            fu.BitwiseBytes(bytedata, 1, "")
         with pytest.raises(IndexError):
-            BitwiseBytes(bytedata, -1, 1)
+            fu.BitwiseBytes(bytedata, -1, 1)
         with pytest.raises(IndexError):
-            BitwiseBytes(bytedata, 0, -1)
+            fu.BitwiseBytes(bytedata, 0, -1)
         with pytest.raises(IndexError):
-            BitwiseBytes(bytedata, 33, 1)
+            fu.BitwiseBytes(bytedata, 33, 1)
         with pytest.raises(IndexError):
-            BitwiseBytes(bytedata, 1, 33)
+            fu.BitwiseBytes(bytedata, 1, 33)
         with pytest.raises(TypeError):
-            BitwiseBytes(bytedata, "", 1)
+            fu.BitwiseBytes(bytedata, "", 1)
         with pytest.raises(TypeError):
-            BitwiseBytes("", 1, 1)
+            fu.BitwiseBytes("", 1, 1)
 
     def test_constructor_stop_bit_logic_ok(self, bytedata):
         with pytest.raises(IndexError):
-            BitwiseBytes(bytedata, 32, 33)
-        assert bytes(BitwiseBytes(bytedata, 32, 32)) == b""
+            fu.BitwiseBytes(bytedata, 32, 33)
+        assert bytes(fu.BitwiseBytes(bytedata, 32, 32)) == b""
 
     def test_converting_back_to_bytes_is_invariant(self, data, bytedata):
         assert bytes(data) == bytedata
 
     def test_copy_constructor_is_invariant(self, data):
-        copy = BitwiseBytes(data)
+        copy = fu.BitwiseBytes(data)
         assert copy == data
         assert copy is not data
 
@@ -196,7 +206,7 @@ class TestBitwiseBytes:
         assert int(data) == 4279173375
 
     def test_int_conversion_on_empty_failse(self):
-        empty = BitwiseBytes(b"")
+        empty = fu.BitwiseBytes(b"")
         with pytest.raises(RuntimeError):
             int(empty)
 
@@ -222,13 +232,12 @@ class TestBitwiseBytes:
         empty_slice = data[:0]
 
         assert bytes(empty_slice) == b""
-        assert empty_slice == BitwiseBytes(b"")
+        assert empty_slice == fu.BitwiseBytes(b"")
         assert len(empty_slice) == 0
 
     def test_empty_data_behaves_appropriately(self):
-        empty_bb = BitwiseBytes(b"")
+        empty_bb = fu.BitwiseBytes(b"")
 
         assert len(empty_bb) == 0
         assert bytes(empty_bb) == b""
         assert not empty_bb.to_bools()
-

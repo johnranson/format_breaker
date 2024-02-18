@@ -166,7 +166,7 @@ class Block(Parser):
     """A container that holds ordered data fields and provides a mechanism for
     parsing them in order"""
 
-    _bitwise: bool
+    _addr_type: util.AddrType
     _relative: bool
     _elements: tuple[Parser, ...]
     _optional: bool
@@ -175,7 +175,7 @@ class Block(Parser):
         self,
         *args: Parser,
         relative: bool = True,
-        bitwise: bool = False,
+        addr_type: util.AddrType | str = util.AddrType.PARENT,
         optional: bool = False,
         **kwargs: Any,
     ) -> None:
@@ -188,13 +188,14 @@ class Block(Parser):
         """
         if not isinstance(relative, bool):
             raise TypeError
-        if not isinstance(bitwise, bool):
-            raise TypeError
         if not all(isinstance(item, Parser) for item in args):
             raise TypeError
+        if isinstance(addr_type, util.AddrType):
+            self._addr_type = addr_type
+        else:
+            self._addr_type = util.AddrType[addr_type]
 
         self._relative = relative
-        self._bitwise = bitwise
         self._optional = optional
         self._elements = args
 
@@ -215,7 +216,7 @@ class Block(Parser):
             addr: The bit or byte address in `data` where the Data being parsed lies.
         """
 
-        with data.make_child() as new_data:
+        with data.make_child(relative=self._relative, addr_type=self._addr_type, revertible=self._optional) as new_data:
             if self._label:
                 out_context = util.Context()
             else:
@@ -231,4 +232,11 @@ class Block(Parser):
 
 
 def Optional(*args, **kwargs):
+    """Shorthand for generating an optional `Block`.
+    
+    Takes the same arguments as a `Block`.
+
+    Returns:
+        An optional `Block`
+    """    
     return Block(*args, optional=True, **kwargs)
