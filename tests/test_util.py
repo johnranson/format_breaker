@@ -164,11 +164,37 @@ class TestDataSource:
                 _ = child1.read_bits(fu.DATA_BUFFER_SIZE)
             assert data._DataSource__cursor == 0
 
-
     def test_incorrect_child_management_raises_error(self):
         with fu.DataSource(BytesIO(src_data)) as data:
-            pass
-        
+            with data.make_child() as child1:
+                with pytest.raises(RuntimeError):
+                    with data.make_child() as child2:
+                        pass
+                with pytest.raises(RuntimeError):
+                    _ = data.read(1)
+                with pytest.raises(RuntimeError):
+                    _ = data.read_bits(1)
+                with pytest.raises(RuntimeError):
+                    _ = data.read_bytes(1)
+                with pytest.raises(RuntimeError):
+                    _ = data.current_address()
+                with pytest.raises(RuntimeError):
+                    data.trim()
+                
+        data = fu.DataSource(BytesIO(src_data))
+        with pytest.raises(RuntimeError):
+            with data.make_child() as child1:
+                pass
+        with pytest.raises(RuntimeError):
+            _ = data.read(1)
+        with pytest.raises(RuntimeError):
+            _ = data.read_bits(1)
+        with pytest.raises(RuntimeError):
+            _ = data.read_bytes(1)
+        with pytest.raises(RuntimeError):
+            _ = data.current_address()
+        with pytest.raises(RuntimeError):
+            data.trim()
 
 @pytest.fixture
 def spacer_stream_data():

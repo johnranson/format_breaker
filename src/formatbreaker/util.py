@@ -374,7 +374,7 @@ class DataSource:
             raise RuntimeError("Attemped to access a DataSource with a child.")
         if not self.__with_safe:
             raise RuntimeError(
-                "Attemped to create a datasource outside a with statement."
+                "Datasource used outside a with statement."
             )
 
     def read(self, length: int | None = None) -> bytes:
