@@ -49,7 +49,7 @@ class ByteFlag(Byte):
             return False
         if self._true_value:
             if data[0] != self._true_value:
-                raise util.FBError
+                raise util.FBError("Value to decode is not '0' or self._true_value")
         return True
 
 

@@ -78,7 +78,7 @@ class Parser:
             A dictionary of field labels and parsed values
         """
         context = util.Context()
-        with util.DataSource(source=data) as datasource:
+        with util.DataSource(src=data) as datasource:
             self._space_and_parse(datasource, context)
         return dict(context)
 
@@ -216,14 +216,20 @@ class Block(Parser):
             addr: The bit or byte address in `data` where the Data being parsed lies.
         """
 
-        with data.make_child(relative=self._relative, addr_type=self._addr_type, revertible=self._optional) as new_data:
+        with data.make_child(
+            relative=self._relative,
+            addr_type=self._addr_type,
+            revertible=self._optional,
+        ) as new_data:
             if self._label:
                 out_context = util.Context()
             else:
                 out_context = context.new_child()
 
             for element in self._elements:
-                element._space_and_parse(new_data, out_context)
+                element._space_and_parse(  # pylint: disable=protected-access
+                    new_data, out_context
+                )
 
         if self._label:
             self._store(context, dict(out_context))
@@ -231,12 +237,12 @@ class Block(Parser):
             out_context.update_ext()
 
 
-def Optional(*args, **kwargs):
+def Optional(*args, **kwargs) -> Block:  # pylint: disable=invalid-name
     """Shorthand for generating an optional `Block`.
-    
+
     Takes the same arguments as a `Block`.
 
     Returns:
         An optional `Block`
-    """    
+    """
     return Block(*args, optional=True, **kwargs)

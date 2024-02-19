@@ -1,108 +1,230 @@
 # pylint: disable=missing-module-docstring
 # pylint: disable=missing-class-docstring
 # pylint: disable=missing-function-docstring
+# pylint: disable=protected-access
 
-import pytest
 from io import BytesIO
+import pytest
 import formatbreaker.util as fu
 
-
-@pytest.fixture
-def raw_data():
-    return bytes(range(256)) * 16
-
-
-@pytest.fixture
-def stream_data(raw_data):
-    return fu.DataSource(source=BytesIO(raw_data))
-
-
-@pytest.fixture
-def bytes_data(raw_data):
-    return fu.DataSource(source=raw_data)
+src_data = bytes(range(256)) * 16
 
 
 class TestDataSource:
-    @pytest.mark.parametrize("fix", ["stream_data", "bytes_data"])
-    def test_basic_bit_reading(self, fix, request, raw_data):
-        data = request.getfixturevalue(fix)
 
-        b = data.read_bits(1025)
-        c = data.read_bits(1025)
-        d = data.read_bits()
+    @pytest.mark.parametrize("src", [src_data, BytesIO(src_data)])
+    def test_basic_bit_reading(self, src):
+        with fu.DataSource(src) as data:
 
-        assert b == fu.BitwiseBytes(raw_data, 0, 1025)
-        assert c == fu.BitwiseBytes(raw_data, 1025, 2050)
-        assert d == fu.BitwiseBytes(raw_data, 2050)
+            b = data.read_bits(1025)
+            c = data.read_bits(1025)
+            d = data.read_bits()
 
-    @pytest.mark.parametrize("fix", ["stream_data", "bytes_data"])
-    def test_basic_byte_reading(self, fix, request, raw_data):
-        data = request.getfixturevalue(fix)
+        assert b == fu.BitwiseBytes(src_data, 0, 1025)
+        assert c == fu.BitwiseBytes(src_data, 1025, 2050)
+        assert d == fu.BitwiseBytes(src_data, 2050)
 
-        b = data.read_bytes(1025)
-        c = data.read_bytes(1025)
-        d = data.read_bytes()
+    @pytest.mark.parametrize("src", [src_data, BytesIO(src_data)])
+    def test_basic_byte_reading(self, src):
+        with fu.DataSource(src) as data:
 
-        assert b == raw_data[0:1025]
-        assert c == raw_data[1025:2050]
-        assert d == raw_data[2050:]
+            b = data.read_bytes(1025)
+            c = data.read_bytes(1025)
+            d = data.read_bytes()
 
+        assert b == src_data[0:1025]
+        assert c == src_data[1025:2050]
+        assert d == src_data[2050:]
+
+    @pytest.mark.parametrize("src", [src_data, BytesIO(src_data)])
+    def test_read_bytes_at_eof_raises_exception(self, src):
+        with fu.DataSource(src) as data:
+
+            _ = data.read_bytes(4096)
+
+            with pytest.raises(fu.FBNoDataError):
+                _ = data.read_bytes(1)
+
+    @pytest.mark.parametrize("src", [src_data, BytesIO(src_data)])
+    def test_read_bits_at_eof_raises_exception(self, src):
+        with fu.DataSource(src) as data:
+
+            _ = data.read_bits(32768)
+
+            with pytest.raises(fu.FBNoDataError):
+                _ = data.read_bits(1)
+
+    @pytest.mark.parametrize("src", [src_data, BytesIO(src_data)])
+    def test_read_bytes_past_eof_raises_exception(self, src):
+        with fu.DataSource(src) as data:
+
+            with pytest.raises(fu.FBNoDataError):
+                _ = data.read_bytes(4097)
+
+    @pytest.mark.parametrize("src", [src_data, BytesIO(src_data)])
+    def test_read_bits_past_eof_raises_exception(self, src):
+        with fu.DataSource(src) as data:
+
+            with pytest.raises(fu.FBNoDataError):
+                _ = data.read_bits(32769)
+
+    def test_buffers_added_and_trimmed_reading_to_buffer_end(self):
+        with fu.DataSource(BytesIO(src_data)) as data:
+            assert data._DataSource__bounds[0] == 0
+            assert data._DataSource__bounds[1] == fu.DATA_BUFFER_SIZE
+            _ = data.read_bits(fu.DATA_BUFFER_SIZE)
+            assert data._DataSource__bounds[1] == fu.DATA_BUFFER_SIZE
+            _ = data.read_bits(1)
+            assert data._DataSource__bounds[0] == fu.DATA_BUFFER_SIZE
+            assert data._DataSource__bounds[1] == fu.DATA_BUFFER_SIZE * 2
+            _ = data.read_bits(fu.DATA_BUFFER_SIZE + 7)
+            assert data._DataSource__bounds[0] == fu.DATA_BUFFER_SIZE * 2
+            assert data._DataSource__bounds[1] == fu.DATA_BUFFER_SIZE * 3
+
+    def test_buffers_added_and_trimmed_reading_large_length(self):
+        with fu.DataSource(BytesIO(src_data)) as data:
+            assert data._DataSource__bounds[0] == 0
+            assert data._DataSource__bounds[1] == fu.DATA_BUFFER_SIZE
+            _ = data.read_bits(fu.DATA_BUFFER_SIZE * 3)
+            assert data._DataSource__bounds[0] == fu.DATA_BUFFER_SIZE
+            assert data._DataSource__bounds[1] == fu.DATA_BUFFER_SIZE * 3
+
+    def test_buffers_added_and_trimmed_reading_to_buffer_end_with_revertible(self):
+        with fu.DataSource(BytesIO(src_data)) as data:
+
+            with data.make_child(revertible=True) as child:
+                assert child._DataSource__bounds[0] == 0
+                assert child._DataSource__bounds[1] == fu.DATA_BUFFER_SIZE
+                _ = child.read_bits(fu.DATA_BUFFER_SIZE)
+                assert child._DataSource__bounds[1] == fu.DATA_BUFFER_SIZE
+                _ = child.read_bits(1)
+                assert child._DataSource__bounds[0] == 0
+                assert child._DataSource__bounds[2] == fu.DATA_BUFFER_SIZE * 2
+                _ = child.read_bits(fu.DATA_BUFFER_SIZE + 7)
+                assert child._DataSource__bounds[0] == 0
+                assert child._DataSource__bounds[3] == fu.DATA_BUFFER_SIZE * 3
+                assert child._DataSource__cursor == fu.DATA_BUFFER_SIZE * 2 + 8
+                raise fu.FBError
+
+            assert data._DataSource__bounds[0] == 0
+            assert data._DataSource__bounds[3] == fu.DATA_BUFFER_SIZE * 3
+            assert data._DataSource__cursor == 0
+
+            with data.make_child(revertible=True) as child:
+                _ = child.read_bits(fu.DATA_BUFFER_SIZE)
+                _ = child.read_bits(1)
+                _ = child.read_bits(fu.DATA_BUFFER_SIZE + 7)
+                assert child._DataSource__bounds[0] == 0
+                assert child._DataSource__bounds[3] == fu.DATA_BUFFER_SIZE * 3
+                assert child._DataSource__cursor == fu.DATA_BUFFER_SIZE * 2 + 8
+
+            assert data._DataSource__bounds[0] == fu.DATA_BUFFER_SIZE * 2
+            assert data._DataSource__bounds[1] == fu.DATA_BUFFER_SIZE * 3
+            assert data._DataSource__cursor == fu.DATA_BUFFER_SIZE * 2 + 8
+
+    def test_buffers_added_and_trimmed_reading_large_length_with_revertible(self):
+        with fu.DataSource(BytesIO(src_data)) as data:
+
+            with data.make_child(revertible=True) as child:
+                assert child._DataSource__bounds[0] == 0
+                assert child._DataSource__bounds[1] == fu.DATA_BUFFER_SIZE
+                _ = child.read_bits(fu.DATA_BUFFER_SIZE * 3)
+                assert child._DataSource__bounds[0] == 0
+                assert child._DataSource__bounds[2] == fu.DATA_BUFFER_SIZE * 3
+                assert child._DataSource__cursor == fu.DATA_BUFFER_SIZE * 3
+                raise fu.FBError
+
+            assert data._DataSource__bounds[0] == 0
+            assert data._DataSource__bounds[2] == fu.DATA_BUFFER_SIZE * 3
+            assert data._DataSource__cursor == 0
+
+            with data.make_child(revertible=True) as child:
+                _ = child.read_bits(fu.DATA_BUFFER_SIZE * 3)
+                assert child._DataSource__bounds[0] == 0
+                assert child._DataSource__bounds[2] == fu.DATA_BUFFER_SIZE * 3
+                assert child._DataSource__cursor == fu.DATA_BUFFER_SIZE * 3
+
+        assert data._DataSource__bounds[0] == fu.DATA_BUFFER_SIZE
+        assert data._DataSource__bounds[1] == fu.DATA_BUFFER_SIZE * 3
+        assert data._DataSource__cursor == fu.DATA_BUFFER_SIZE * 3
+
+    def test_buffers_with_nested_revertible(self):
+        with fu.DataSource(BytesIO(src_data)) as data:
+            with data.make_child(revertible=True) as child1:
+                _ = child1.read_bits(fu.DATA_BUFFER_SIZE * 3)
+                assert child1._DataSource__cursor == fu.DATA_BUFFER_SIZE * 3
+                with child1.make_child(revertible=True) as child2:
+                    # Read past the end
+                    _ = child2.read_bits(fu.DATA_BUFFER_SIZE * 3)
+                assert child1._DataSource__cursor == fu.DATA_BUFFER_SIZE * 3
+                with child1.make_child(revertible=True) as child3:
+                    _ = child3.read_bits(fu.DATA_BUFFER_SIZE)
+                assert child1._DataSource__cursor == fu.DATA_BUFFER_SIZE * 4
+                # Read past the end
+                _ = child1.read_bits(fu.DATA_BUFFER_SIZE)
+            assert data._DataSource__cursor == 0
+
+
+    def test_incorrect_child_management_raises_error(self):
+        with fu.DataSource(BytesIO(src_data)) as data:
+            pass
+        
 
 @pytest.fixture
 def spacer_stream_data():
     dat = bytes(range(128))
-    return fu.DataSource(source=BytesIO(dat))
+    return fu.DataSource(BytesIO(dat))
 
 
 @pytest.fixture
 def spacer_bytes_data():
     dat = bytes(range(256)) * 16
-    return fu.DataSource(source=dat)
+    return fu.DataSource(dat)
 
 
-@pytest.mark.parametrize("raw_data", [bytes(range(128))])
+spacer_data = bytes(range(128))
+
+
 class TestSpacer:
 
     @pytest.fixture
     def context(self):
         return fu.Context()
 
-    def test_spacer_generates_expected_dictionary_and_return_value(
-        self, raw_data, context
-    ):
-        data = fu.DataSource(source=raw_data)
-        data.read(1)
-        fu.spacer(data, context, 6)
-        assert context["spacer_0x1-0x5"] == bytes(raw_data[1:6])
+    def test_spacer_generates_expected_dictionary_and_return_value(self, context):
+        with fu.DataSource(spacer_data) as data:
+            data.read(1)
+            fu.spacer(data, context, 6)
+            assert context["spacer_0x1-0x5"] == bytes(spacer_data[1:6])
 
     def test_duplicate_spacer_generates_expected_dictionary_and_return_value(
-        self, raw_data, context
+        self, context
     ):
-        data = fu.DataSource(source=raw_data)
-        context["spacer_0x1-0x5"] = bytes(raw_data[1:6])
-        data.read(1)
-        fu.spacer(data, context, 6)
-        assert context["spacer_0x1-0x5 1"] == bytes(raw_data[1:6])
+        with fu.DataSource(spacer_data) as data:
+            context["spacer_0x1-0x5"] = bytes(spacer_data[1:6])
+            data.read(1)
+            fu.spacer(data, context, 6)
+            assert context["spacer_0x1-0x5 1"] == bytes(spacer_data[1:6])
 
-    def test_spacer_works_with_entire_input(self, raw_data, context):
-        data = fu.DataSource(source=raw_data)
-        fu.spacer(data, context, 128)
-        assert context["spacer_0x0-0x7f"] == bytes(raw_data)
+    def test_spacer_works_with_entire_input(self, context):
+        with fu.DataSource(spacer_data) as data:
+            fu.spacer(data, context, 128)
+            assert context["spacer_0x0-0x7f"] == bytes(spacer_data)
 
-    def test_length_one_beyond_input_size_raises_error(self, raw_data, context):
-        data = fu.DataSource(source=raw_data)
-        with pytest.raises(fu.FBNoDataError):
-            fu.spacer(data, context, 129)
+    def test_length_one_beyond_input_size_raises_error(self, context):
+        with fu.DataSource(spacer_data) as data:
+            with pytest.raises(fu.FBNoDataError):
+                fu.spacer(data, context, 129)
 
-    def test_negative_address_raises_error(self, raw_data, context):
-        data = fu.DataSource(source=raw_data)
-        with pytest.raises(IndexError):
-            fu.spacer(data, context, -1)
+    def test_negative_address_raises_error(self, context):
+        with fu.DataSource(spacer_data) as data:
+            with pytest.raises(IndexError):
+                fu.spacer(data, context, -1)
 
-    def test_zero_length_spacer_is_no_op(self, raw_data, context):
-        data = fu.DataSource(source=raw_data)
-        fu.spacer(data, context, 0)
-        assert context == {}
+    def test_zero_length_spacer_is_no_op(self, context):
+        with fu.DataSource(spacer_data) as data:
+            fu.spacer(data, context, 0)
+            assert context == {}
 
 
 class TestBitwiseBytes:
@@ -116,7 +238,7 @@ class TestBitwiseBytes:
 
     def test_invalid_constructor_inputs_raise_error(self, bytedata):
         with pytest.raises(TypeError):
-            fu.BitwiseBytes(bytedata, 1, "")
+            fu.BitwiseBytes(bytedata, 1, "")  # type: ignore
         with pytest.raises(IndexError):
             fu.BitwiseBytes(bytedata, -1, 1)
         with pytest.raises(IndexError):
@@ -126,9 +248,9 @@ class TestBitwiseBytes:
         with pytest.raises(IndexError):
             fu.BitwiseBytes(bytedata, 1, 33)
         with pytest.raises(TypeError):
-            fu.BitwiseBytes(bytedata, "", 1)
+            fu.BitwiseBytes(bytedata, "", 1)  # type: ignore
         with pytest.raises(TypeError):
-            fu.BitwiseBytes("", 1, 1)
+            fu.BitwiseBytes("", 1, 1)  # type: ignore
 
     def test_constructor_stop_bit_logic_ok(self, bytedata):
         with pytest.raises(IndexError):
@@ -145,7 +267,7 @@ class TestBitwiseBytes:
 
     def test_wrong_index_type_raises_error(self, data):
         with pytest.raises(ValueError):
-            data["asdf"]
+            _ = data["asdf"]
 
     def test_slices_with_identical_contents_equal(self, data):
         assert data[0:8] == data[24:32]
@@ -212,17 +334,17 @@ class TestBitwiseBytes:
 
     def test_too_high_subscript_raises_error(self, data):
         with pytest.raises(IndexError):
-            data[32]
+            _ = data[32]
 
     def test_too_low_subscript_raises_error(self, data):
         with pytest.raises(IndexError):
-            data[-33]
+            _ = data[-33]
 
     def test_steps_other_than_one_raise_errors(self, data):
         with pytest.raises(NotImplementedError):
-            data[1:10:2]
+            _ = data[1:10:2]
         with pytest.raises(NotImplementedError):
-            data[1:10:-1]
+            _ = data[1:10:-1]
 
     def test_negative_and_positive_subscripts_read_matching_bits(self, data):
         for i in range(32):

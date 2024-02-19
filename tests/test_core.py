@@ -1,3 +1,8 @@
+# pylint: disable=missing-module-docstring
+# pylint: disable=missing-class-docstring
+# pylint: disable=missing-function-docstring
+# pylint: disable=protected-access
+
 import pytest
 from formatbreaker.core import Parser, Block
 from formatbreaker.util import BitwiseBytes, Context, DataSource, FBNoDataError
@@ -31,10 +36,10 @@ class TestParser:
 
     def test_bad_constructor_types_raise_exceptions(self):
         with pytest.raises(TypeError):
-            Parser("label", "address")
+            Parser("label", "address")  # type: ignore
 
         with pytest.raises(TypeError):
-            Parser(3, 3)
+            Parser(3, 3)  # type: ignore
 
     def test_negative_address_raises_exception(self):
         with pytest.raises(IndexError):
@@ -73,34 +78,35 @@ class TestParser:
         }
 
     def test_default_parser_performs_no_op(self, labeled_dt, context):
-        labeled_dt._parse(DataSource(b"123567"), context)
+        with DataSource(b"123567") as data:
+            labeled_dt._parse(data, context)
 
         assert context == {}
 
     def test_space_and_parse_raises_error_past_required_address(
         self, labeled_dt, context
     ):
-        data = DataSource(source=b"123567")
-        data.read(5)
-        with pytest.raises(IndexError):
-            labeled_dt._space_and_parse(data, context)
+        with DataSource(b"123567") as data:
+            data.read(5)
+            with pytest.raises(IndexError):
+                labeled_dt._space_and_parse(data, context)
 
     def test_space_and_parse_does_not_create_spacer_if_at_address(
         self, labeled_dt, context
     ):
-        data = DataSource(source=b"123567")
-        data.read(3)
-        labeled_dt._space_and_parse(data, context)
-        assert not bool(context)
+        with DataSource(b"123567") as data:
+            data.read(3)
+            labeled_dt._space_and_parse(data, context)
+            assert not bool(context)
 
     def test_space_and_parse_creates_spacer_if_before_required_address(
         self, labeled_dt, context
     ):
-        data = DataSource(source=b"123567")
-        data.read(1)
-        labeled_dt._space_and_parse(data, context)
+        with DataSource(b"123567") as data:
+            data.read(1)
+            labeled_dt._space_and_parse(data, context)
 
-        assert context["spacer_0x1-0x2"] == b"23"
+            assert context["spacer_0x1-0x2"] == b"23"
 
 
 class TestBlock:
@@ -124,13 +130,13 @@ class TestBlock:
     def test_empty_block_returns_empty_dict_on_parsing(self, empty_block):
         assert empty_block.parse(b"abc") == {}
 
-    def test_block_constructor_fails_with_bad_data(self, empty_block):
+    def test_block_constructor_fails_with_bad_data(self):
         with pytest.raises(TypeError):
-            Block("test")
+            Block("test")  # type: ignore
         with pytest.raises(TypeError):
-            Block(relative="true")
+            Block(relative="true")  # type: ignore
         with pytest.raises(TypeError):
-            Block(addr_type={})
+            Block(addr_type={})  # type: ignore
 
     @pytest.fixture
     def sequential_block(self):
@@ -194,7 +200,6 @@ class TestBlock:
     ):
         with pytest.raises(RuntimeError):
             bitwise_sequential_block_length_9.parse(b"12354234562")
-
 
     @pytest.fixture
     def addressed_block(self):

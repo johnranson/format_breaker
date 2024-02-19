@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 from io import BufferedIOBase, BytesIO
-from typing import Any, overload
+from typing import Any, overload, override
 from operator import add
 from collections import ChainMap, deque
-from collections.abc import Collection
 import bisect
-from enum import StrEnum
+from enum import Enum
 
-AddrType = StrEnum("AddrType", ["BIT", "BYTE", "BYTE_STRICT", "PARENT"])
+AddrType = Enum("AddrType", ["BIT", "BYTE", "BYTE_STRICT", "PARENT"])
 
 
 class FBError(Exception):
@@ -37,30 +36,29 @@ class BitwiseBytes:
 
     def __init__(
         self,
-        data_source: bytes | BitwiseBytes,
+        source: bytes | BitwiseBytes,
         start_bit: int = 0,
         stop_bit: int | None = None,
     ) -> None:
         """Constructs a BitwiseBytes object
 
         Args:
-            data_source:The object to create the new BitwiseBytes object from
-            start_bit: The address of the first bit in `data_source` to be included
-            bit_length: The address of the first bit in `data_source` to be excluded
-
+            source:The object to create the new BitwiseBytes object from
+            start_bit: The address of the first bit in `source` to be included
+            bit_length: The address of the first bit in `source` to be excluded
         """
-        if isinstance(data_source, BitwiseBytes):
-            data_length = data_source._length
-            self._data = data_source._data
-            base_bit = data_source._start_bit
-            base_byte = data_source._start_byte
-        elif isinstance(data_source, bytes):
-            data_length = len(data_source) * 8
-            self._data = data_source
+        if isinstance(source, BitwiseBytes):
+            self._data = source._data
+            base_bit = source._start_bit
+            base_byte = source._start_byte
+        elif isinstance(source, bytes):
+            self._data = source
             base_bit = 0
             base_byte = 0
         else:
             raise TypeError
+
+        data_length = bitlen(source)
 
         validate_address_or_length(start_bit, 0, data_length)
         if stop_bit is not None:
@@ -77,7 +75,6 @@ class BitwiseBytes:
 
     @overload
     def __getitem__(self, item: int) -> bool: ...
-
     @overload
     def __getitem__(self, item: slice) -> BitwiseBytes: ...
 
@@ -242,73 +239,143 @@ class Context(ChainMap):
 DATA_BUFFER_SIZE = 1024 * 8
 
 
-class DataSource(ChainMap):
+class DataSource:
     """This class holds a source of data, buffers it, and keeps a nested contexts
     storing address data allowing reversion of failed reads."""
 
-    _source: BufferedIOBase
-    _bounds: deque[int]
-    _buffers: deque[bytes]
-    _source_empty: bool
+    __slots__ = (
+        "__with_safe",
+        "__has_child",
+        "__revertible",
+        "__cursor",
+        "__parent",
+        "__base",
+        "__addr_type",
+        "__bounds",
+        "__buffers",
+        "__source_empty",
+        "__source",
+    )
 
-    @property
-    def _cursor(self) -> int:
-        return self["_cursor"]
+    __with_safe: bool
+    __has_child: bool
+    __revertible: bool | None
+    __cursor: int
+    __parent: DataSource | None
+    __base: int | None
+    __addr_type: AddrType | None
+    __bounds: deque
+    __buffers: deque
+    __source_empty: bool
+    __source: bytes | BufferedIOBase
 
-    @_cursor.setter
-    def _cursor(self, addr: int) -> None:
-        self["_cursor"] = addr
+    # Properties - All properties are stored in the current Datasource
+    # Local Properties - Stored in the current dictionary
 
     @property
     def _base(self) -> int:
-        return self["_base"]
-
-    @_base.setter
-    def _base(self, addr: int) -> None:
-        self["_base"] = addr
+        if self.__base is not None:
+            return self.__base
+        assert self.__parent is not None
+        return self.__parent._base
 
     @property
     def _addr_type(self) -> AddrType:
-        return self["_addr_type"]
-
-    @_addr_type.setter
-    def _addr_type(self, t: AddrType) -> None:
-        self["_addr_type"] = t
+        if self.__addr_type is not None:
+            return self.__addr_type
+        assert self.__parent is not None
+        return self.__parent._addr_type
 
     @property
     def _revertible(self) -> bool:
-        return self["_revertible"]
+        if self.__revertible:
+            return True
+        if self.__parent is not None:
+            return self.__parent._revertible
+        return False
 
-    @_revertible.setter
-    def _revertible(self, revertible: bool) -> None:
-        self["_revertible"] = revertible
+    @property
+    def _source_empty(self) -> bool:
+        return self.__source_empty
 
-    def __init__(self, *maps, source: bytes | BufferedIOBase | None = None):
-        super().__init__(*maps)
-        if source is None:
-            return
+    @_source_empty.setter
+    def _source_empty(self, source_empty: bool) -> None:
+        self.__source_empty = source_empty
+        if self.__parent is not None:
+            self.__parent._source_empty = source_empty
 
-        # Attributes
-        self._source = BytesIO(b"")
-        self._bounds = deque([0])
-        self._buffers = deque()
-        self._source_empty = False
+    @override
+    def __init__(
+        self,
+        src: bytes | BufferedIOBase | DataSource,
+        relative: bool = True,
+        addr_type: AddrType = AddrType.PARENT,
+        revertible: bool = False,
+    ):
+        self.__with_safe = False
 
-        # Stored in the ChainMap
-        self._revertible = False
-        self._cursor = 0
-        self._base = 0
-        self._addr_type = AddrType.BYTE
+        self.__has_child = False
 
-        if isinstance(source, bytes):
-            self._buffers.append(source)
-            self._bounds.append(bitlen(source))
-            self._source_empty = True
-        elif isinstance(source, BufferedIOBase):
-            self._source = source
-            self._read_into_buffer(DATA_BUFFER_SIZE)
+        self.__revertible = revertible
+
+        if isinstance(src, DataSource):
+
+            self.__source = src.__source
+            self.__bounds = src.__bounds
+            self.__buffers = src.__buffers
+            self.__cursor = src.__cursor
+            self.__parent = src
+            self.__source_empty = src._source_empty
+            self.__parent.__has_child = True
+            if relative:
+                self.__base = self.__cursor
+            match addr_type:
+                case AddrType.PARENT:
+                    self.__addr_type = None
+                case AddrType.BYTE:
+                    self.__addr_type = AddrType.BYTE
+                case AddrType.BYTE_STRICT:
+                    self.__addr_type = AddrType.BYTE
+                    if src.__cursor % 8:
+                        raise FBError(
+                            "Strict byte addr_type must start on a byte boundary"
+                        )
+                case AddrType.BIT:
+                    self.__addr_type = AddrType.BIT
+            if src._addr_type != addr_type and not relative:
+                raise RuntimeError("Address type changes must use relative addr_type")
         else:
-            raise NotImplementedError
+            # No parent
+            self.__parent = None  # Must be first
+            if addr_type == AddrType.PARENT:
+                self.__addr_type = AddrType.BYTE
+            else:
+                self.__addr_type == addr_type
+
+            self.__source = BytesIO(b"")
+            self.__bounds = deque([0])
+            self.__buffers = deque()
+            self._source_empty = False
+
+            self.__cursor = 0
+            self.__base = 0
+            if isinstance(src, bytes):
+                self.__buffers.append(src)
+                self.__bounds.append(bitlen(src))
+                self._source_empty = True
+            elif isinstance(src, BufferedIOBase):
+                self.__source = src
+                self._read_into_buffer(DATA_BUFFER_SIZE)
+            else:
+                raise NotImplementedError
+
+    def fail_if_unsafe(self) -> None:
+        if self.__has_child:
+            raise RuntimeError("Attemped to access a DataSource with a child.")
+        if not self.__with_safe:
+            raise RuntimeError(
+                "Attemped to create a datasource outside a with statement."
+            )
 
     def read(self, length: int | None = None) -> bytes:
         """Reads from the buffer
@@ -321,6 +388,8 @@ class DataSource(ChainMap):
             The requested data, if available. Bits are converted to right justified
             bytes.
         """
+        self.fail_if_unsafe()
+
         if self._addr_type == AddrType.BYTE:
             return self.read_bytes(length)
         return bytes(self.read_bits(length))
@@ -334,6 +403,7 @@ class DataSource(ChainMap):
         Returns:
             The requested bytes, if available
         """
+        self.fail_if_unsafe()
         if byte_length is not None:
             if byte_length == 0:
                 return b""
@@ -349,7 +419,8 @@ class DataSource(ChainMap):
         Returns:
             The requested bits, if available
         """
-        start_addr = self._cursor
+        self.fail_if_unsafe()
+        start_addr = self.__cursor
 
         if start_addr < self.lower_bound():
             raise IndexError("Cursor points to data no longer in buffers")
@@ -371,45 +442,45 @@ class DataSource(ChainMap):
         else:
             if not self._source_empty:
                 self._read_into_buffer()
-            stop_addr = self._bounds[-1]
+            stop_addr = self.__bounds[-1]
 
         result = self._get_data_from_buffers(start_addr, stop_addr)
-        self._cursor = stop_addr
+        self.__cursor = stop_addr
         self.trim()
         return result
 
     def _get_data_from_buffers(self, start: int, stop: int):
         assert stop > start >= 0
 
-        start_buffer = bisect.bisect_right(self._bounds, start) - 1
+        start_buffer = bisect.bisect_right(self.__bounds, start) - 1
         assert start_buffer >= 0
-        assert start_buffer < len(self._buffers)
+        assert start_buffer < len(self.__buffers)
 
-        stop_buffer = bisect.bisect_left(self._bounds, stop) - 1
+        stop_buffer = bisect.bisect_left(self.__bounds, stop) - 1
         assert start_buffer >= 0
-        assert start_buffer < len(self._buffers)
+        assert start_buffer < len(self.__buffers)
 
-        start_buffer_start = start - self._bounds[start_buffer]
-        stop_buffer_stop = stop - self._bounds[stop_buffer]
+        start_buffer_start = start - self.__bounds[start_buffer]
+        stop_buffer_stop = stop - self.__bounds[stop_buffer]
 
         start_buffer_start = downtobyte(start_buffer_start)
         stop_buffer_stop = uptobyte(stop_buffer_stop)
 
         if start_buffer == stop_buffer:
-            byte_result = self._buffers[start_buffer][
+            byte_result = self.__buffers[start_buffer][
                 start_buffer_start:stop_buffer_stop
             ]
 
         elif start_buffer + 1 == stop_buffer:
             byte_result = (
-                self._buffers[start_buffer][start_buffer_start:]
-                + self._buffers[stop_buffer][:stop_buffer_stop]
+                self.__buffers[start_buffer][start_buffer_start:]
+                + self.__buffers[stop_buffer][:stop_buffer_stop]
             )
         else:
-            byte_result = self._buffers[start_buffer][start_buffer_start:]
+            byte_result = self.__buffers[start_buffer][start_buffer_start:]
             for i in range(start_buffer + 1, stop_buffer):
-                byte_result = byte_result + self._buffers[i]
-            byte_result = byte_result + self._buffers[stop_buffer][:stop_buffer_stop]
+                byte_result = byte_result + self.__buffers[i]
+            byte_result = byte_result + self.__buffers[stop_buffer][:stop_buffer_stop]
 
         start_slice = start % 8
         stop_slice = start_slice + stop - start
@@ -434,37 +505,36 @@ class DataSource(ChainMap):
         if bit_length is not None:
             byte_length = uptobyte(max(DATA_BUFFER_SIZE, bit_length))
             read_length = byte_length * 8
-            data = self._source.read(byte_length)
+            data = self.__source.read(byte_length)
         else:
             read_length = float("inf")
-            data = self._source.read()
+            data = self.__source.read()
             self._source_empty = True
         data_length = bitlen(data)
         self._source_empty = data_length < read_length
-        self._bounds.append(self._bounds[-1] + data_length)
-        self._buffers.append(data)
+        self.__bounds.append(self.__bounds[-1] + data_length)
+        self.__buffers.append(data)
         return data_length
 
     def trim(self) -> None:
         """Discard any buffers that have been read and are unneeded"""
-        assert self._cursor <= self._bounds[-1]
+        self.fail_if_unsafe()
+        assert self.__cursor <= self.__bounds[-1]
         # This would imply that the cursor points to data we haven't read
 
-        assert len(self._bounds) > 1
+        assert len(self.__bounds) > 1
         # This would imply that we have have no buffers
 
         if self._revertible:
             return
 
-        while self._cursor > self._bounds[1]:
-            del self._buffers[0]
-            del self._bounds[0]
+        while self.__cursor > self.__bounds[1]:
+            del self.__buffers[0]
+            del self.__bounds[0]
 
     def make_child(
         self,
-        relative: bool = True,
-        addr_type: AddrType = AddrType.PARENT,
-        revertible: bool = False,
+        **kwargs,
     ) -> DataSource:
         """Creates a child DataSource with its own cursor and addressing
 
@@ -476,28 +546,9 @@ class DataSource(ChainMap):
         Returns:
             The child DataSource
         """
-        child: DataSource = self.__class__({}, *self.maps)
-        child._source = self._source
-        child._buffers = self._buffers
-        child._bounds = self._bounds
-        child._source_empty = self._source_empty
-        if relative:
-            child._base = self._cursor
-        match addr_type:
-            case AddrType.PARENT:
-                pass
-            case AddrType.BYTE:
-                child._addr_type = AddrType.BYTE
-            case AddrType.BYTE_STRICT:
-                child._addr_type = AddrType.BYTE
-                if self._cursor % 8:
-                    raise FBError("Strict byte addr_type must start on a byte boundary")
-            case AddrType.BIT:
-                child._addr_type = AddrType.BIT
-        if self._addr_type != addr_type and not relative:
-            raise RuntimeError("Address type changes must use relative addr_type")
-        if revertible:
-            child._revertible = True
+        # pylint: disable=protected-access
+        self.fail_if_unsafe()
+        child: DataSource = self.__class__(self, **kwargs)
         return child
 
     def current_address(self) -> int:
@@ -506,39 +557,37 @@ class DataSource(ChainMap):
         Returns:
             The current read address, bitwise or bytewise according to `self.addr_type`
         """
+        self.fail_if_unsafe()
         if self._addr_type == AddrType.BYTE:
-            return (self._cursor - self._base) // 8
-        return self._cursor - self._base
+            return (self.__cursor - self._base) // 8
+        return self.__cursor - self._base
 
     def __enter__(self) -> DataSource:
+        self.__with_safe = True
         return self
 
     def __exit__(self, e_type, value, traceback) -> bool:
         if e_type is None:
             # Data has been read successfully and we update the parent DataSource with
             # the current cursor location before this Cursor is discarded.
-            self._update_parent()
+            if self.__parent is not None:
+                if (
+                    self.__parent._addr_type == AddrType.BYTE
+                    and (self.__cursor - self._base) % 8
+                ):
+                    raise RuntimeError(
+                        "Cannot return non-byte length to bytewise parent"
+                    )
+                self.__parent.__cursor = self.__cursor
+                self.__parent.__has_child = False
+                self.__parent.trim()
             return True
-        if e_type is FBError:
-            if self.maps[0]["_revertible"]:
-                # In the case that the current data read is revertible, upon an FBError,
-                # we don't update the parent DataSource cursor, essentially undoing all
-                # data reads with this DataSource
+        if issubclass(e_type, FBError):
+            if self._revertible:
+                if self.__parent is not None:
+                    self.__parent.__has_child = False
                 return True
         raise
-
-    def _update_parent(self) -> None:
-        """Updates the parent DataSource with the current cursor location.
-
-        Raises:
-            RuntimeError: Returned if the parent is bytewise and the current cursor is
-            not on a byte address
-        """
-        parent = self.parents
-        if parent:
-            if parent._addr_type == AddrType.BYTE and (self._cursor - self._base) % 8:
-                raise RuntimeError("Cannot return non-byte length to bytewise parent")
-            parent._cursor = self._cursor
 
     def lower_bound(self) -> int:
         """Returns the bit address of the first byte in the buffers
@@ -546,7 +595,7 @@ class DataSource(ChainMap):
         Returns:
             The bit address of the first byte in the buffers
         """
-        return self._bounds[0]
+        return self.__bounds[0]
 
     def upper_bound(self) -> int:
         """Returns the bit address after the last byte in the buffers
@@ -554,10 +603,10 @@ class DataSource(ChainMap):
         Returns:
             The bit address after the last byte in the buffers
         """
-        return self._bounds[-1]
+        return self.__bounds[-1]
 
 
-def bitlen(obj: Collection) -> int:
+def bitlen(obj: bytes | BitwiseBytes) -> int:
     """Returns the length of an object in bits
 
     Args:
@@ -566,7 +615,11 @@ def bitlen(obj: Collection) -> int:
     Returns:
         The length of `obj` in bits
     """
-    return len(obj) * 8
+    if isinstance(obj, bytes):
+        return len(obj) * 8
+    if isinstance(obj, BitwiseBytes):
+        return len(obj)
+    raise NotImplementedError
 
 
 def uptobyte(bits: int) -> int:

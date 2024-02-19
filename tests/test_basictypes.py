@@ -1,6 +1,7 @@
 # pylint: disable=missing-module-docstring
 # pylint: disable=missing-class-docstring
 # pylint: disable=missing-function-docstring
+# pylint: disable=protected-access
 
 import pytest
 from formatbreaker.core import Block
@@ -120,9 +121,9 @@ class TestVarBytes:
 
     def test_invalid_length_key_raises_error(self):
         with pytest.raises(TypeError):
-            bt.VarBytes(source=5)
+            bt.VarBytes(source=5)  # type: ignore
         with pytest.raises(TypeError):
-            bt.VarBytes(source=None)
+            bt.VarBytes(source=None)  # type: ignore
 
     @pytest.fixture
     def test_block_address(self):
@@ -142,10 +143,12 @@ class TestVarBytes:
 
 
 def test_pad_to_address_bytewise():
-    data = DataSource(source=b"123456")
-    data.read_bytes(1)
-    context = Context()
-    bt.PadToAddress(5)._space_and_parse(data, context) #pylint: disable=protected-access
+    with DataSource(b"123456") as data:
+        data.read_bytes(1)
+        context = Context()
+        bt.PadToAddress(5)._space_and_parse(
+            data, context
+        )  # pylint: disable=protected-access
     assert dict(context) == {"spacer_0x1-0x4": b"2345"}
 
 
@@ -155,22 +158,26 @@ def test_pad_to_address_not_callable():
 
 
 def test_pad_to_address_bitwise():
-    data = DataSource(source=b"\xF0")
-    context = Context()
-    with data.make_child(addr_type=AddrType.BIT) as new_data:
-        new_data.read(1)
-        bt.PadToAddress(5)._space_and_parse(new_data, context) #pylint: disable=protected-access
-        bt.PadToAddress(8)._space_and_parse(new_data, context) #pylint: disable=protected-access
+    with DataSource(b"\xF0") as data:
+        context = Context()
+        with data.make_child(addr_type=AddrType.BIT) as new_data:
+            new_data.read(1)
+            bt.PadToAddress(5)._space_and_parse(
+                new_data, context
+            )  # pylint: disable=protected-access
+            bt.PadToAddress(8)._space_and_parse(
+                new_data, context
+            )  # pylint: disable=protected-access
 
     assert dict(context) == {"spacer_0x1-0x4": b"\x0e", "spacer_0x5-0x7": b"\x00"}
 
 
 def test_remnant_bytewise():
-    data = DataSource(source=b"123456")
-    data.read_bytes(1)
-    context = Context()
-    bt.Remnant("name", 1)._parse(data, context) #pylint: disable=protected-access
-    assert dict(context) == {"name": b"23456"}
+    with DataSource(b"123456") as data:
+        data.read_bytes(1)
+        context = Context()
+        bt.Remnant("name", 1)._parse(data, context)  # pylint: disable=protected-access
+        assert dict(context) == {"name": b"23456"}
 
 
 # def test_remnant_bytewise():
@@ -182,9 +189,11 @@ def test_remnant_bytewise():
 
 
 def test_remant_bitwise():
-    data = DataSource(source=b"\xF0")
-    context = Context()
-    with data.make_child(addr_type=AddrType.BIT) as new_data:
-        new_data.read(1)
-        bt.Remnant("name", 1)._parse(new_data, context) #pylint: disable=protected-access
-    assert dict(context) == {"name": b"\x70"}
+    with  DataSource(b"\xF0") as data:
+        context = Context()
+        with data.make_child(addr_type=AddrType.BIT) as new_data:
+            new_data.read(1)
+            bt.Remnant("name", 1)._parse(
+                new_data, context
+            )  # pylint: disable=protected-access
+        assert dict(context) == {"name": b"\x70"}
