@@ -7,12 +7,12 @@ The classes in this module add functionality to existing parsers by adding
 from __future__ import annotations
 from typing import Any, override
 import struct
-from uuid import UUID
-from formatbreaker.basictypes import Bit, BitWord, Bytes, Byte
-from formatbreaker import util
+import uuid
+import formatbreaker.basictypes as fbb
+import formatbreaker.util as fbu
 
 
-class ByteFlag(Byte):
+class ByteFlag(fbb.Byte):
     """Reads 1 byte as a boolean"""
 
     _true_value: int | None
@@ -49,11 +49,11 @@ class ByteFlag(Byte):
             return False
         if self._true_value:
             if data[0] != self._true_value:
-                raise util.FBError("Value to decode is not '0' or self._true_value")
+                raise fbu.FBError("Value to decode is not '0' or self._true_value")
         return True
 
 
-class BitConst(Bit):
+class BitConst(fbb.Bit):
     """Fails parsing if a bit doesn't match a constant value"""
 
     _backup_label = "Const"
@@ -66,41 +66,41 @@ class BitConst(Bit):
     @override
     def _decode(self, data: bool) -> bool:
         if self._value != super()._decode(data):
-            raise util.FBError("Constant not matched")
+            raise fbu.FBError("Constant not matched")
         return self._value
 
 
-class BitWordConst(BitWord):
+class BitWordConst(fbb.BitWord):
     """Fails parsing if a word doesn't match a constant value"""
 
     _backup_label = "Const"
 
     @override
     def __init__(
-        self, value: bytes | util.BitwiseBytes, bit_length: int, **kwargs: Any
+        self, value: bytes | fbu.BitwiseBytes, bit_length: int, **kwargs: Any
     ) -> None:
 
-        self._value = util.BitwiseBytes(value, 0, bit_length)
+        self._value = fbu.BitwiseBytes(value, 0, bit_length)
         super().__init__(bit_length, **kwargs)
 
     @override
-    def _decode(self, data: util.BitwiseBytes) -> int:
+    def _decode(self, data: fbu.BitwiseBytes) -> int:
         if self._value != data:
-            raise util.FBError("Constant not matched")
+            raise fbu.FBError("Constant not matched")
         return int(self._value)
 
 
-class BitFlags(BitWord):
+class BitFlags(fbb.BitWord):
     """Reads a number of bits from the data"""
 
     _backup_label = "Const"
 
     @override
-    def _decode(self, data: util.BitwiseBytes) -> list[bool]:
+    def _decode(self, data: fbu.BitwiseBytes) -> list[bool]:
         return data.to_bools()
 
 
-class Int32L(Bytes):
+class Int32L(fbb.Bytes):
     """Reads 4 bytes as a signed, little endian integer"""
 
     _backup_label = "Int32"
@@ -122,7 +122,7 @@ class Int32L(Bytes):
         return int.from_bytes(data, "little", signed=True)
 
 
-class UInt32L(Bytes):
+class UInt32L(fbb.Bytes):
     """Reads 4 bytes as a unsigned, little endian integer"""
 
     _backup_label = "UInt32"
@@ -144,7 +144,7 @@ class UInt32L(Bytes):
         return int.from_bytes(data, "little", signed=False)
 
 
-class Int16L(Bytes):
+class Int16L(fbb.Bytes):
     """Reads 2 bytes as a signed, little endian integer"""
 
     _backup_label = "Int16"
@@ -166,7 +166,7 @@ class Int16L(Bytes):
         return int.from_bytes(data, "little", signed=True)
 
 
-class UInt16L(Bytes):
+class UInt16L(fbb.Bytes):
     """Reads 2 bytes as a unsigned, little endian integer"""
 
     _backup_label = "UInt16"
@@ -188,7 +188,7 @@ class UInt16L(Bytes):
         return int.from_bytes(data, "little", signed=False)
 
 
-class Int8(Byte):
+class Int8(fbb.Byte):
     """Reads 1 byte as a signed integer"""
 
     _backup_label = "Int8"
@@ -206,7 +206,7 @@ class Int8(Byte):
         return int.from_bytes(data, "little", signed=True)
 
 
-class UInt8(Byte):
+class UInt8(fbb.Byte):
     """Reads 1 byte as an unsigned integer"""
 
     _backup_label = "UInt8"
@@ -224,7 +224,7 @@ class UInt8(Byte):
         return int.from_bytes(data, "little", signed=False)
 
 
-class Float32L(Bytes):
+class Float32L(fbb.Bytes):
     """Reads 4 bytes as a little endian single precision float"""
 
     _backup_label = "Float32"
@@ -249,7 +249,7 @@ class Float32L(Bytes):
         return struct.unpack("<f", data)[0]
 
 
-class Float64L(Bytes):
+class Float64L(fbb.Bytes):
     """Reads 8 bytes as a little endian double precision float"""
 
     _backup_label = "Float64"
@@ -274,7 +274,7 @@ class Float64L(Bytes):
         return struct.unpack("<d", data)[0]
 
 
-class UuidL(Bytes):
+class UuidL(fbb.Bytes):
     """Reads 16 bytes as a UUID (Little Endian words)"""
 
     _backup_label = "UUID"
@@ -284,7 +284,7 @@ class UuidL(Bytes):
         super().__init__(16, **kwargs)
 
     @override
-    def _decode(self, data: bytes) -> UUID:
+    def _decode(self, data: bytes) -> uuid.UUID:
         """Decodes a UUID with little endian words.
 
         Args:
@@ -293,10 +293,10 @@ class UuidL(Bytes):
         Returns:
             The decoded UUID
         """
-        return UUID(bytes_le=data)
+        return uuid.UUID(bytes_le=data)
 
 
-class UuidB(Bytes):
+class UuidB(fbb.Bytes):
     """Reads 16 bytes as a UUID (Big Endian words)"""
 
     _backup_label = "UUID"
@@ -306,7 +306,7 @@ class UuidB(Bytes):
         super().__init__(16, **kwargs)
 
     @override
-    def _decode(self, data: bytes) -> UUID:
+    def _decode(self, data: bytes) -> uuid.UUID:
         """Decodes a UUID with big endian words.
 
         Args:
@@ -315,4 +315,4 @@ class UuidB(Bytes):
         Returns:
             The decoded UUID
         """
-        return UUID(bytes=data)
+        return uuid.UUID(bytes=data)

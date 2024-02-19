@@ -1,14 +1,14 @@
 """Code that is mostly used internally"""
 
 from __future__ import annotations
-from io import BufferedIOBase, BytesIO
 from typing import Any, overload, override
-from operator import add
-from collections import ChainMap, deque
+import io
+import operator as op
+import collections
 import bisect
-from enum import Enum
+import enum
 
-AddrType = Enum("AddrType", ["BIT", "BYTE", "BYTE_STRICT", "PARENT"])
+AddrType = enum.Enum("AddrType", ["BIT", "BYTE", "BYTE_STRICT", "PARENT"])
 
 
 class FBError(Exception):
@@ -163,7 +163,7 @@ class BitwiseBytes:
                 first_part = [b & 0xFF for b in shift_data[:-1]]
                 second_part = [b >> 8 for b in shift_data[1:]]
 
-                result = bytes(map(add, first_part, second_part))
+                result = bytes(map(op.add, first_part, second_part))
         return result
 
     def to_bools(self) -> list[bool]:
@@ -210,7 +210,7 @@ def validate_address_or_length(
             raise IndexError
 
 
-class Context(ChainMap):
+class Context(collections.ChainMap):
     """Contains the results from parsing in a nested manner, allowing reverting failed
     optional data reads"""
 
@@ -264,10 +264,10 @@ class DataSource:
     __parent: DataSource | None
     __base: int | None
     __addr_type: AddrType | None
-    __bounds: deque
-    __buffers: deque
+    __bounds: collections.deque[int]
+    __buffers: collections.deque[bytes]
     __source_empty: bool
-    __source: bytes | BufferedIOBase
+    __source: bytes | io.BufferedIOBase
 
     # Properties - All properties are stored in the current Datasource
     # Local Properties - Stored in the current dictionary
@@ -307,7 +307,7 @@ class DataSource:
     @override
     def __init__(
         self,
-        src: bytes | BufferedIOBase | DataSource,
+        src: bytes | io.BufferedIOBase | DataSource,
         relative: bool = True,
         addr_type: AddrType = AddrType.PARENT,
         revertible: bool = False,
@@ -352,9 +352,9 @@ class DataSource:
             else:
                 self.__addr_type == addr_type
 
-            self.__source = BytesIO(b"")
-            self.__bounds = deque([0])
-            self.__buffers = deque()
+            self.__source = io.BytesIO(b"")
+            self.__bounds = collections.deque([0])
+            self.__buffers = collections.deque()
             self._source_empty = False
 
             self.__cursor = 0
@@ -363,7 +363,7 @@ class DataSource:
                 self.__buffers.append(src)
                 self.__bounds.append(bitlen(src))
                 self._source_empty = True
-            elif isinstance(src, BufferedIOBase):
+            elif isinstance(src, io.BufferedIOBase):
                 self.__source = src
                 self._read_into_buffer(DATA_BUFFER_SIZE)
             else:
