@@ -546,7 +546,6 @@ class DataSource:
         Returns:
             The child DataSource
         """
-        # pylint: disable=protected-access
         self.fail_if_unsafe()
         child: DataSource = self.__class__(self, **kwargs)
         return child
