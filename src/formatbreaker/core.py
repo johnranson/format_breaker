@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 from typing import ClassVar, Any, override
-from copy import copy
-from io import BufferedIOBase
-from formatbreaker import util
+import copy
+import io
+import formatbreaker.util as fbu
+import formatbreaker.datasource as ds
+import collections
 
 
 class Parser:
@@ -31,7 +33,7 @@ class Parser:
     @_address.setter
     def _address(self, address: int | None) -> None:
         if address is not None:
-            util.validate_address_or_length(address)
+            fbu.validate_address_or_length(address)
         self.__address = address
 
     def __init__(self, label: str | None = None, address: int | None = None) -> None:
@@ -43,7 +45,7 @@ class Parser:
         self._address = address
         self._label = label
 
-    def _parse(self, data: util.DataSource, context: util.Context) -> None:
+    def _parse(self, data: ds.DataSource, context: Context) -> None:
         """Parses data into a dictionary
 
         Should be overridden by any subclass that reads data. Does
@@ -56,7 +58,7 @@ class Parser:
         """
         # pylint: disable=unused-argument
 
-    def _space_and_parse(self, data: util.DataSource, context: util.Context) -> None:
+    def _space_and_parse(self, data: ds.DataSource, context: Context) -> None:
         """Reads to the target location and then parses normally
 
         Args:
@@ -65,10 +67,10 @@ class Parser:
                 containing Block
         """
         if self._address is not None:
-            util.spacer(data, context, self._address)
+            spacer(data, context, self._address)
         self._parse(data, context)
 
-    def parse(self, data: bytes | BufferedIOBase) -> dict:
+    def parse(self, data: bytes | io.BufferedIOBase) -> dict:
         """Parse the provided data from the beginning
 
         Args:
@@ -77,8 +79,8 @@ class Parser:
         Returns:
             A dictionary of field labels and parsed values
         """
-        context = util.Context()
-        with util.DataSource(src=data) as datasource:
+        context = Context()
+        with ds.DataSource(src=data) as datasource:
             self._space_and_parse(datasource, context)
         return dict(context)
 
@@ -93,7 +95,7 @@ class Parser:
             A copy of the existing object with the label and address changed.
         """
 
-        b = copy(self)
+        b = copy.copy(self)
         if label is not None:
             b._label = label
         if address is not None:
@@ -102,7 +104,7 @@ class Parser:
 
     def _store(
         self,
-        context: util.Context,
+        context: Context,
         data: Any,
         addr: int | None = None,
         label: str | None = None,
@@ -127,7 +129,7 @@ class Parser:
             label = self._label
         elif self._backup_label:
             if addr is not None:
-                util.validate_address_or_length(addr)
+                fbu.validate_address_or_length(addr)
                 label = self._backup_label + "_" + hex(addr)
             else:
                 label = self._backup_label
@@ -136,7 +138,7 @@ class Parser:
 
         context[label] = self._decode(data)
 
-    def _update(self, context: util.Context, data: util.Context):
+    def _update(self, context: Context, data: Context):
         """Decode a dictionary and update into another dictionary
 
         Args:
@@ -166,7 +168,7 @@ class Block(Parser):
     """A container that holds ordered data fields and provides a mechanism for
     parsing them in order"""
 
-    _addr_type: util.AddrType
+    _addr_type: ds.AddrType
     _relative: bool
     _elements: tuple[Parser, ...]
     _optional: bool
@@ -175,7 +177,7 @@ class Block(Parser):
         self,
         *args: Parser,
         relative: bool = True,
-        addr_type: util.AddrType | str = util.AddrType.PARENT,
+        addr_type: ds.AddrType | str = ds.AddrType.PARENT,
         optional: bool = False,
         **kwargs: Any,
     ) -> None:
@@ -190,10 +192,10 @@ class Block(Parser):
             raise TypeError
         if not all(isinstance(item, Parser) for item in args):
             raise TypeError
-        if isinstance(addr_type, util.AddrType):
+        if isinstance(addr_type, ds.AddrType):
             self._addr_type = addr_type
         else:
-            self._addr_type = util.AddrType[addr_type]
+            self._addr_type = ds.AddrType[addr_type]
 
         self._relative = relative
         self._optional = optional
@@ -204,8 +206,8 @@ class Block(Parser):
     @override
     def _parse(
         self,
-        data: util.DataSource,
-        context: util.Context,
+        data: ds.DataSource,
+        context: Context,
     ) -> None:
         """Parse the data using each Parser sequentially.
 
@@ -222,7 +224,7 @@ class Block(Parser):
             revertible=self._optional,
         ) as new_data:
             if self._label:
-                out_context = util.Context()
+                out_context = Context()
             else:
                 out_context = context.new_child()
 
@@ -246,3 +248,55 @@ def Optional(*args, **kwargs) -> Block:  # pylint: disable=invalid-name
         An optional `Block`
     """
     return Block(*args, optional=True, **kwargs)
+
+
+def spacer(
+    data: ds.DataSource,
+    context: Context,
+    stop_addr: int,
+):
+    """Reads a spacer into a context dictionary
+
+    Args:
+        data: Data being parsed
+        context: Where results are stored
+        stop_addr: The address of the first bit or byte in `data_source` to be excluded
+
+    """
+    start_addr = data.current_address()
+    length = stop_addr - start_addr
+
+    if length == 0:
+        return
+    if length > 1:
+        spacer_label = "spacer_" + hex(start_addr) + "-" + hex(stop_addr - 1)
+    else:
+        spacer_label = "spacer_" + hex(start_addr)
+
+    context[spacer_label] = data.read(length)
+
+
+class Context(collections.ChainMap):
+    """Contains the results from parsing in a nested manner, allowing reverting failed
+    optional data reads"""
+
+    def __setitem__(self, key: str, value: Any) -> None:
+        """Sets the underlying ChainMap value but updates duplicate keys
+
+        Args:
+            key: _description_
+            value: _description_
+        """
+        new_key = key
+        i = 1
+        while new_key in self:
+            new_key = key + " " + str(i)
+            i = i + 1
+        super().__setitem__(new_key, value)
+
+    def update_ext(self) -> None:
+        """Loads all of the current Context values into the parent Context"""
+        if len(self.maps) == 1:
+            raise RuntimeError
+        self.maps[1].update(self.maps[0])
+        self.maps[0].clear()

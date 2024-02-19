@@ -4,8 +4,38 @@
 # pylint: disable=protected-access
 
 import pytest
-from formatbreaker.core import Parser, Block
-from formatbreaker.util import BitwiseBytes, Context, DataSource, FBNoDataError
+from formatbreaker.core import Parser, Block, Context, spacer
+from formatbreaker.bitwisebytes import BitwiseBytes
+from formatbreaker.datasource import DataSource
+from formatbreaker.exceptions import FBNoDataError
+import io
+
+
+class TestContext:
+    def test_renaming(self):
+        context = Context()
+        context["name"] = 1
+        context["name"] = 2
+        context["name"] = 3
+        assert context["name"] == 1
+        assert context["name 1"] == 2
+        assert context["name 2"] == 3
+
+    def test_update_ext_works(self):
+        context = Context()
+        context["name"] = 1
+        child = context.new_child()
+        child["name"] = 2
+        child["new_name"] = 3
+        child.update_ext()
+        assert context["name"] == 1
+        assert context["name 1"] == 2
+        assert context["new_name"] == 3
+
+    def test_update_ext_with_no_parent_raises_error(self):
+        context = Context()
+        with pytest.raises(RuntimeError):
+            context.update_ext()
 
 
 class TestParser:
@@ -260,3 +290,60 @@ class TestBlock:
             "spacer_0x9 1": b"E",
             "mock_0xa 1": "qux",
         }
+
+
+@pytest.fixture
+def spacer_stream_data():
+    dat = bytes(range(128))
+    return DataSource(io.BytesIO(dat))
+
+
+@pytest.fixture
+def spacer_bytes_data():
+    dat = bytes(range(256)) * 16
+    return DataSource(dat)
+
+
+spacer_data = bytes(range(128))
+
+
+class TestSpacer:
+
+    @pytest.fixture
+    def context(self):
+        return Context()
+
+    def test_spacer_generates_expected_dictionary_and_return_value(self, context):
+        with DataSource(spacer_data) as data:
+            data.read(1)
+            spacer(data, context, 6)
+            assert context["spacer_0x1-0x5"] == bytes(spacer_data[1:6])
+
+    def test_duplicate_spacer_generates_expected_dictionary_and_return_value(
+        self, context
+    ):
+        with DataSource(spacer_data) as data:
+            context["spacer_0x1-0x5"] = bytes(spacer_data[1:6])
+            data.read(1)
+            spacer(data, context, 6)
+            assert context["spacer_0x1-0x5 1"] == bytes(spacer_data[1:6])
+
+    def test_spacer_works_with_entire_input(self, context):
+        with DataSource(spacer_data) as data:
+            spacer(data, context, 128)
+            assert context["spacer_0x0-0x7f"] == bytes(spacer_data)
+
+    def test_length_one_beyond_input_size_raises_error(self, context):
+        with DataSource(spacer_data) as data:
+            with pytest.raises(FBNoDataError):
+                spacer(data, context, 129)
+
+    def test_negative_address_raises_error(self, context):
+        with DataSource(spacer_data) as data:
+            with pytest.raises(IndexError):
+                spacer(data, context, -1)
+
+    def test_zero_length_spacer_is_no_op(self, context):
+        with DataSource(spacer_data) as data:
+            spacer(data, context, 0)
+            assert context == {}

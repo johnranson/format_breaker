@@ -7,7 +7,9 @@ import pytest
 from formatbreaker.core import Block
 import formatbreaker.basictypes as bt
 from formatbreaker.decoders import UInt8
-from formatbreaker.util import AddrType, FBError, DataSource, Context
+from formatbreaker.datasource import DataSource, AddrType
+from formatbreaker.exceptions import FBError
+from formatbreaker.core import Context
 
 
 class TestByte:
@@ -189,7 +191,7 @@ def test_remnant_bytewise():
 
 
 def test_remant_bitwise():
-    with  DataSource(b"\xF0") as data:
+    with DataSource(b"\xF0") as data:
         context = Context()
         with data.make_child(addr_type=AddrType.BIT) as new_data:
             new_data.read(1)
