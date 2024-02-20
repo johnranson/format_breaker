@@ -1,3 +1,6 @@
+"""This contains all custom exceptions used in the package"""
+
+
 class FBError(Exception):
     """This error should be raised when a Parser fails to parse the data
     because it doesn't fit expectations. The idea is that optional data

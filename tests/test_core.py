@@ -149,7 +149,7 @@ class TestBlock:
             super().__init__(**kwargs)
 
         def _parse(self, data, context):
-            addr = data.current_address()
+            addr = data.address
             data.read(self.length)
             self._store(context, self.value, addr)
 

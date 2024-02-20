@@ -263,7 +263,7 @@ def _spacer(
         stop_addr: The address of the first bit or byte in `data_source` to be excluded
 
     """
-    start_addr = data.current_address()
+    start_addr = data.address
     length = stop_addr - start_addr
 
     if length == 0:

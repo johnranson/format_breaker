@@ -27,7 +27,7 @@ class Byte(fbc.Parser):
                 same containing Block
             addr: The bit or byte address in `data` where the byte to be parsed lies.
         """
-        addr = data.current_address()
+        addr = data.address
         result = data.read_bytes(1)
         self._store(context, result, addr)
 
@@ -60,7 +60,7 @@ class Bytes(fbc.Parser):
             addr: The bit or byte address in `data` where the bytes to be parsed lie.
         """
 
-        addr = data.current_address()
+        addr = data.address
         result = data.read_bytes(self._byte_length)
         self._store(context, result, addr)
 
@@ -98,7 +98,7 @@ class VarBytes(fbc.Parser):
         Returns:
             The next bit or byte address after the parsed bytes
         """
-        addr = data.current_address()
+        addr = data.address
         length = context[self._length_key]
         result = data.read_bytes(length)
         self._store(context, result, addr)
@@ -140,7 +140,7 @@ class Remnant(fbc.Parser):
         Returns:
             The length of `data`
         """
-        addr = data.current_address()
+        addr = data.address
         result = data.read_bytes()
 
         self._store(context, result, addr)
@@ -165,7 +165,7 @@ class Bit(fbc.Parser):
         Returns:
             The next bit address after the parsed byte
         """
-        addr = data.current_address()
+        addr = data.address
 
         result = data.read_bits(1)
 
@@ -203,7 +203,7 @@ class BitWord(fbc.Parser):
         Returns:
             The next bit address after the parsed bits
         """
-        addr = data.current_address()
+        addr = data.address
         result = data.read_bits(self._bit_length)
         self._store(context, result, addr=addr)
 
