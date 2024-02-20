@@ -57,7 +57,7 @@ class DataBufferer:
         else:
             self._read_into_buffer()
             stop = self.upper_bound
-        return stop
+        return self._get_data_from_buffers(start, stop), stop
 
     def _get_data_from_buffers(self, start: int, stop: int):
         assert stop > start >= 0
@@ -205,21 +205,7 @@ class DataSource:
                 self.__base = self.__cursor
             else:
                 self.__base = src.__base
-            match addr_type:
-                case AddrType.PARENT:
-                    self.__addr_type = src.__addr_type
-                case AddrType.BYTE:
-                    self.__addr_type = AddrType.BYTE
-                case AddrType.BYTE_STRICT:
-                    self.__addr_type = AddrType.BYTE
-                    if src.__cursor % 8:
-                        raise fbe.FBError(
-                            "Strict byte addr_type must start on a byte boundary"
-                        )
-                case AddrType.BIT:
-                    self.__addr_type = AddrType.BIT
-            if src.__addr_type != addr_type and not relative:
-                raise RuntimeError("Address type changes must use relative addr_type")
+
         else:
             # No parent
             self.__trim_safe = not revertible
@@ -233,6 +219,27 @@ class DataSource:
 
             self.__cursor = 0
             self.__base = 0
+
+        match addr_type:
+            case AddrType.PARENT:
+                if self.__parent is not None:
+                    self.__addr_type = src.__addr_type
+                else:
+                    self.__addr_type = AddrType.BYTE
+            case AddrType.BYTE:
+                self.__addr_type = AddrType.BYTE
+            case AddrType.BYTE_STRICT:
+                self.__addr_type = AddrType.BYTE
+                if src.__cursor % 8:
+                    raise fbe.FBError(
+                        "Strict byte addr_type must start on a byte boundary"
+                    )
+            case AddrType.BIT:
+                self.__addr_type = AddrType.BIT
+
+        if self.__parent and self.__parent.__addr_type != addr_type and not relative:
+            raise RuntimeError("Address type changes must use relative addr_type")
+
 
     def fail_if_unsafe(self) -> None:
         if self.__has_child:
@@ -289,9 +296,7 @@ class DataSource:
             if bit_length == 0:
                 return bitwisebytes.BitwiseBytes(b"")
 
-        stop_addr = self._bufferer._load_data_into_buffers(start_addr, bit_length)
-
-        result = self._bufferer._get_data_from_buffers(start_addr, stop_addr)
+        (result, stop_addr) = self._bufferer._load_data_into_buffers(start_addr, bit_length)
         self.__cursor = stop_addr
         self.trim()
         return result
