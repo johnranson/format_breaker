@@ -14,7 +14,9 @@ AddrType = enum.Enum("AddrType", ["BIT", "BYTE", "BYTE_STRICT", "PARENT"])
 DATA_BUFFER_SIZE = 1024 * 8
 
 
-class DataBufferer:
+class DataBuffer:
+    """This class provides buffered, bitwise addressable interface to bytes or a
+    BufferIOBase"""
     __slots__ = ("__bounds", "__buffers", "__stream_eof", "__stream")
     __bounds: collections.deque[int]
     __buffers: collections.deque[bytes]
@@ -41,14 +43,11 @@ class DataBufferer:
 
     def _load_data_into_buffers(self, start: int, bit_length: int | None) -> int:
         if start < self.lower_bound:
-            raise IndexError("Cursor points to data no longer in buffers")
-        if start > self.upper_bound:
-            raise IndexError("Cursor points past end of buffered data.")
+            raise IndexError("Addressed data no longer in DataBuffer")
 
         if bit_length is not None:
             if bit_length < 0:
                 raise IndexError("Cannot read negative length.")
-
             stop = start + bit_length
             if stop > self.upper_bound:
                 bits_needed = stop - self.upper_bound
@@ -175,7 +174,7 @@ class DataSource:
         "__addr_type",
     )
 
-    _bufferer: DataBufferer
+    _bufferer: DataBuffer
     __with_safe: bool
     __has_child: bool
     __revertible: bool
@@ -215,7 +214,7 @@ class DataSource:
             else:
                 self.__addr_type == addr_type
 
-            self._bufferer = DataBufferer(src)
+            self._bufferer = DataBuffer(src)
 
             self.__cursor = 0
             self.__base = 0
