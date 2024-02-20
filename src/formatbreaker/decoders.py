@@ -8,11 +8,12 @@ from __future__ import annotations
 from typing import Any, override
 import struct
 import uuid
-import formatbreaker.basictypes as fbb
-import formatbreaker.util as fbu
+import formatbreaker.basictypes
+from formatbreaker.exceptions import FBError
+from formatbreaker.bitwisebytes import BitwiseBytes
 
 
-class ByteFlag(fbb.Byte):
+class ByteFlag(formatbreaker.basictypes.Byte):
     """Reads 1 byte as a boolean"""
 
     _true_value: int | None
@@ -49,11 +50,11 @@ class ByteFlag(fbb.Byte):
             return False
         if self._true_value:
             if data[0] != self._true_value:
-                raise fbu.FBError("Value to decode is not '0' or self._true_value")
+                raise FBError("Value to decode is not '0' or self._true_value")
         return True
 
 
-class BitConst(fbb.Bit):
+class BitConst(formatbreaker.basictypes.Bit):
     """Fails parsing if a bit doesn't match a constant value"""
 
     _backup_label = "Const"
@@ -66,41 +67,41 @@ class BitConst(fbb.Bit):
     @override
     def _decode(self, data: bool) -> bool:
         if self._value != super()._decode(data):
-            raise fbu.FBError("Constant not matched")
+            raise FBError("Constant not matched")
         return self._value
 
 
-class BitWordConst(fbb.BitWord):
+class BitWordConst(formatbreaker.basictypes.BitWord):
     """Fails parsing if a word doesn't match a constant value"""
 
     _backup_label = "Const"
 
     @override
     def __init__(
-        self, value: bytes | fbu.BitwiseBytes, bit_length: int, **kwargs: Any
+        self, value: BitwiseBytes | bytes, bit_length: int, **kwargs: Any
     ) -> None:
 
-        self._value = fbu.BitwiseBytes(value, 0, bit_length)
+        self._value = BitwiseBytes(value, 0, bit_length)
         super().__init__(bit_length, **kwargs)
 
     @override
-    def _decode(self, data: fbu.BitwiseBytes) -> int:
+    def _decode(self, data: BitwiseBytes) -> int:
         if self._value != data:
-            raise fbu.FBError("Constant not matched")
+            raise formatbreaker.exceptions.FBError("Constant not matched")
         return int(self._value)
 
 
-class BitFlags(fbb.BitWord):
+class BitFlags(formatbreaker.basictypes.BitWord):
     """Reads a number of bits from the data"""
 
     _backup_label = "Const"
 
     @override
-    def _decode(self, data: fbu.BitwiseBytes) -> list[bool]:
+    def _decode(self, data: BitwiseBytes) -> list[bool]:
         return data.to_bools()
 
 
-class Int32L(fbb.Bytes):
+class Int32L(formatbreaker.basictypes.Bytes):
     """Reads 4 bytes as a signed, little endian integer"""
 
     _backup_label = "Int32"
@@ -122,7 +123,7 @@ class Int32L(fbb.Bytes):
         return int.from_bytes(data, "little", signed=True)
 
 
-class UInt32L(fbb.Bytes):
+class UInt32L(formatbreaker.basictypes.Bytes):
     """Reads 4 bytes as a unsigned, little endian integer"""
 
     _backup_label = "UInt32"
@@ -144,7 +145,7 @@ class UInt32L(fbb.Bytes):
         return int.from_bytes(data, "little", signed=False)
 
 
-class Int16L(fbb.Bytes):
+class Int16L(formatbreaker.basictypes.Bytes):
     """Reads 2 bytes as a signed, little endian integer"""
 
     _backup_label = "Int16"
@@ -166,7 +167,7 @@ class Int16L(fbb.Bytes):
         return int.from_bytes(data, "little", signed=True)
 
 
-class UInt16L(fbb.Bytes):
+class UInt16L(formatbreaker.basictypes.Bytes):
     """Reads 2 bytes as a unsigned, little endian integer"""
 
     _backup_label = "UInt16"
@@ -188,7 +189,7 @@ class UInt16L(fbb.Bytes):
         return int.from_bytes(data, "little", signed=False)
 
 
-class Int8(fbb.Byte):
+class Int8(formatbreaker.basictypes.Byte):
     """Reads 1 byte as a signed integer"""
 
     _backup_label = "Int8"
@@ -206,7 +207,7 @@ class Int8(fbb.Byte):
         return int.from_bytes(data, "little", signed=True)
 
 
-class UInt8(fbb.Byte):
+class UInt8(formatbreaker.basictypes.Byte):
     """Reads 1 byte as an unsigned integer"""
 
     _backup_label = "UInt8"
@@ -224,7 +225,7 @@ class UInt8(fbb.Byte):
         return int.from_bytes(data, "little", signed=False)
 
 
-class Float32L(fbb.Bytes):
+class Float32L(formatbreaker.basictypes.Bytes):
     """Reads 4 bytes as a little endian single precision float"""
 
     _backup_label = "Float32"
@@ -249,7 +250,7 @@ class Float32L(fbb.Bytes):
         return struct.unpack("<f", data)[0]
 
 
-class Float64L(fbb.Bytes):
+class Float64L(formatbreaker.basictypes.Bytes):
     """Reads 8 bytes as a little endian double precision float"""
 
     _backup_label = "Float64"
@@ -274,7 +275,7 @@ class Float64L(fbb.Bytes):
         return struct.unpack("<d", data)[0]
 
 
-class UuidL(fbb.Bytes):
+class UuidL(formatbreaker.basictypes.Bytes):
     """Reads 16 bytes as a UUID (Little Endian words)"""
 
     _backup_label = "UUID"
@@ -296,7 +297,7 @@ class UuidL(fbb.Bytes):
         return uuid.UUID(bytes_le=data)
 
 
-class UuidB(fbb.Bytes):
+class UuidB(formatbreaker.basictypes.Bytes):
     """Reads 16 bytes as a UUID (Big Endian words)"""
 
     _backup_label = "UUID"

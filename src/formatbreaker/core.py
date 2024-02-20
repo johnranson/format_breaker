@@ -67,7 +67,7 @@ class Parser:
                 containing Block
         """
         if self._address is not None:
-            spacer(data, context, self._address)
+            _spacer(data, context, self._address)
         self._parse(data, context)
 
     def parse(self, data: bytes | io.BufferedIOBase) -> dict:
@@ -250,7 +250,7 @@ def Optional(*args, **kwargs) -> Block:  # pylint: disable=invalid-name
     return Block(*args, optional=True, **kwargs)
 
 
-def spacer(
+def _spacer(
     data: ds.DataSource,
     context: Context,
     stop_addr: int,

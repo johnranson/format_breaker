@@ -4,7 +4,7 @@
 # pylint: disable=protected-access
 
 import pytest
-from formatbreaker.core import Parser, Block, Context, spacer
+from formatbreaker.core import Parser, Block, Context, _spacer
 from formatbreaker.bitwisebytes import BitwiseBytes
 from formatbreaker.datasource import DataSource
 from formatbreaker.exceptions import FBNoDataError
@@ -316,7 +316,7 @@ class TestSpacer:
     def test_spacer_generates_expected_dictionary_and_return_value(self, context):
         with DataSource(spacer_data) as data:
             data.read(1)
-            spacer(data, context, 6)
+            _spacer(data, context, 6)
             assert context["spacer_0x1-0x5"] == bytes(spacer_data[1:6])
 
     def test_duplicate_spacer_generates_expected_dictionary_and_return_value(
@@ -325,25 +325,25 @@ class TestSpacer:
         with DataSource(spacer_data) as data:
             context["spacer_0x1-0x5"] = bytes(spacer_data[1:6])
             data.read(1)
-            spacer(data, context, 6)
+            _spacer(data, context, 6)
             assert context["spacer_0x1-0x5 1"] == bytes(spacer_data[1:6])
 
     def test_spacer_works_with_entire_input(self, context):
         with DataSource(spacer_data) as data:
-            spacer(data, context, 128)
+            _spacer(data, context, 128)
             assert context["spacer_0x0-0x7f"] == bytes(spacer_data)
 
     def test_length_one_beyond_input_size_raises_error(self, context):
         with DataSource(spacer_data) as data:
             with pytest.raises(FBNoDataError):
-                spacer(data, context, 129)
+                _spacer(data, context, 129)
 
     def test_negative_address_raises_error(self, context):
         with DataSource(spacer_data) as data:
             with pytest.raises(IndexError):
-                spacer(data, context, -1)
+                _spacer(data, context, -1)
 
     def test_zero_length_spacer_is_no_op(self, context):
         with DataSource(spacer_data) as data:
-            spacer(data, context, 0)
+            _spacer(data, context, 0)
             assert context == {}
