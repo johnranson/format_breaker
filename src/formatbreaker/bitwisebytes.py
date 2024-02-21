@@ -33,7 +33,7 @@ class BitwiseBytes:
             self._data = source._data
             base_bit = source._start_bit
             base_byte = source._start_byte
-        elif isinstance(source, bytes):
+        elif isinstance(source, bytes):  # type: ignore
             self._data = source
             base_bit = 0
             base_byte = 0
@@ -78,7 +78,7 @@ class BitwiseBytes:
 
             return BitwiseBytes(self._data, start, stop)
 
-        elif isinstance(item, int):
+        elif isinstance(item, int):  # type: ignore
             if item >= self._length or item < -self._length:
                 raise IndexError
             item = item % self._length
@@ -180,6 +180,6 @@ def bitlen(obj: bytes | BitwiseBytes) -> int:
     """
     if isinstance(obj, bytes):
         return len(obj) * 8
-    if isinstance(obj, BitwiseBytes):
+    if isinstance(obj, BitwiseBytes):  # type: ignore
         return len(obj)
     raise NotImplementedError

@@ -7,17 +7,19 @@ by only implementing __init__ and _decode, it should not go here.
 
 from __future__ import annotations
 from typing import Any, override
-import formatbreaker.core as fbc
-import formatbreaker.util as fbu
+from formatbreaker.core import Parser, Context
+from formatbreaker.datasource import DataManager
+from formatbreaker.util import validate_address_or_length
+from formatbreaker.bitwisebytes import BitwiseBytes
 
 
-class Byte(fbc.Parser):
+class Byte(Parser):
     """Reads a single byte from the data"""
 
     _backup_label = "Byte"
 
     @override
-    def _parse(self, data: fbu.DataSource, context: fbu.Context) -> None:
+    def _parse(self, data: DataManager, context: Context) -> None:
         """Reads a single byte from `addr` in `data` and stores the byte in an
         entry in `context`
 
@@ -32,7 +34,7 @@ class Byte(fbc.Parser):
         self._store(context, result, addr)
 
 
-class Bytes(fbc.Parser):
+class Bytes(Parser):
     """Reads a number of bytes from the data"""
 
     _backup_label = "Bytes"
@@ -44,12 +46,12 @@ class Bytes(fbc.Parser):
             byte_length:The length to read in bytes, when parsing.
             **kwargs: Arguments to be passed to the superclass constructor
         """
-        fbu.validate_address_or_length(byte_length, 1)
+        validate_address_or_length(byte_length, 1)
         self._byte_length = byte_length
         super().__init__(*args, **kwargs)
 
     @override
-    def _parse(self, data: fbu.DataSource, context: fbu.Context) -> None:
+    def _parse(self, data: DataManager, context: Context) -> None:
         """Reads `self._byte_length` many bytes from `addr` in `data` and
         stores the bytes in an entry in `context`
 
@@ -65,7 +67,7 @@ class Bytes(fbc.Parser):
         self._store(context, result, addr)
 
 
-class VarBytes(fbc.Parser):
+class VarBytes(Parser):
     """Reads a number of bytes from the data with length dynamically
     defined by another field in the data"""
 
@@ -79,13 +81,13 @@ class VarBytes(fbc.Parser):
                 bytes to read while parsing
             **kwargs: Arguments to be passed to the superclass constructor
         """
-        if not isinstance(source, str):
+        if not isinstance(source, str):  # type: ignore
             raise TypeError
         self._length_key = source
         super().__init__(*args, **kwargs)
 
     @override
-    def _parse(self, data: fbu.DataSource, context: fbu.Context) -> None:
+    def _parse(self, data: DataManager, context: Context) -> None:
         """Reads `context[self.length_key]` many bytes from `addr` in `data`
         and stores the bytes in an entry in `context`
 
@@ -99,17 +101,17 @@ class VarBytes(fbc.Parser):
             The next bit or byte address after the parsed bytes
         """
         addr = data.address
-        length = context[self._length_key]
+        length: int = context[self._length_key]
+        if not isinstance(length, int):  # type: ignore
+            raise ValueError()
         result = data.read_bytes(length)
         self._store(context, result, addr)
 
 
-class PadToAddress(fbc.Parser):
+class PadToAddress(Parser):
     """Generates a spacer during parsing to a specific address"""
 
-    def __call__(
-        self, name: str | None = None, address: int | None = None
-    ) -> fbc.Parser:
+    def __call__(self, name: str | None = None, address: int | None = None) -> Parser:
         raise NotImplementedError
 
     @override
@@ -121,13 +123,13 @@ class PadToAddress(fbc.Parser):
         super().__init__(address=address)
 
 
-class Remnant(fbc.Parser):
+class Remnant(Parser):
     """Reads all remainging bytes in the data"""
 
     _backup_label = "Remnant"
 
     @override
-    def _parse(self, data: fbu.DataSource, context: fbu.Context) -> None:
+    def _parse(self, data: DataManager, context: Context) -> None:
         """Reads all data from `addr` to the end of `data` and stores the
         data in an entry in `context`
 
@@ -146,13 +148,13 @@ class Remnant(fbc.Parser):
         self._store(context, result, addr)
 
 
-class Bit(fbc.Parser):
+class Bit(Parser):
     """Reads a single byte from the data"""
 
     _backup_label = "Bit"
 
     @override
-    def _parse(self, data: fbu.DataSource, context: fbu.Context) -> None:
+    def _parse(self, data: DataManager, context: Context) -> None:
         """Reads a single bit from `addr` in `data` and stores the bit in an
         entry in `context`
 
@@ -172,7 +174,7 @@ class Bit(fbc.Parser):
         self._store(context, result, addr)
 
 
-class BitWord(fbc.Parser):
+class BitWord(Parser):
     """Reads a number of bits from the data"""
 
     _bit_length: int
@@ -185,12 +187,12 @@ class BitWord(fbc.Parser):
             bit_length: The length to read in bits, when parsing.
             **kwargs: Arguments to be passed to the superclass constructor
         """
-        fbu.validate_address_or_length(bit_length, 1)
+        validate_address_or_length(bit_length, 1)
         self._bit_length = bit_length
         super().__init__(*args, **kwargs)
 
     @override
-    def _parse(self, data: fbu.DataSource, context: fbu.Context) -> None:
+    def _parse(self, data: DataManager, context: Context) -> None:
         """Reads `self._bit_length` many bits from `addr` in `data` and
         stores the bits as BitwiseBytes in an entry in `context`
 
@@ -208,7 +210,7 @@ class BitWord(fbc.Parser):
         self._store(context, result, addr=addr)
 
     @override
-    def _decode(self, data: fbu.BitwiseBytes) -> int:
+    def _decode(self, data: BitwiseBytes) -> int:
         """Decodes the bits into an unsigned integer
 
         Args:

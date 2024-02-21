@@ -8,12 +8,12 @@ from __future__ import annotations
 from typing import Any, override
 import struct
 import uuid
-import formatbreaker.basictypes
+from formatbreaker.basictypes import Byte, Bytes, BitWord, Bit
 from formatbreaker.exceptions import FBError
 from formatbreaker.bitwisebytes import BitwiseBytes
 
 
-class ByteFlag(formatbreaker.basictypes.Byte):
+class ByteFlag(Byte):
     """Reads 1 byte as a boolean"""
 
     _true_value: int | None
@@ -54,7 +54,7 @@ class ByteFlag(formatbreaker.basictypes.Byte):
         return True
 
 
-class BitConst(formatbreaker.basictypes.Bit):
+class BitConst(Bit):
     """Fails parsing if a bit doesn't match a constant value"""
 
     _backup_label = "Const"
@@ -71,7 +71,7 @@ class BitConst(formatbreaker.basictypes.Bit):
         return self._value
 
 
-class BitWordConst(formatbreaker.basictypes.BitWord):
+class BitWordConst(BitWord):
     """Fails parsing if a word doesn't match a constant value"""
 
     _backup_label = "Const"
@@ -87,21 +87,22 @@ class BitWordConst(formatbreaker.basictypes.BitWord):
     @override
     def _decode(self, data: BitwiseBytes) -> int:
         if self._value != data:
-            raise formatbreaker.exceptions.FBError("Constant not matched")
+            raise FBError("Constant not matched")
         return int(self._value)
 
 
-class BitFlags(formatbreaker.basictypes.BitWord):
+class BitFlags(BitWord):
     """Reads a number of bits from the data"""
 
     _backup_label = "Const"
 
     @override
-    def _decode(self, data: BitwiseBytes) -> list[bool]:
+    def _decode(self, data: BitwiseBytes) -> list[bool]:  # type: ignore[override]
+        # The _decode
         return data.to_bools()
 
 
-class Int32L(formatbreaker.basictypes.Bytes):
+class Int32L(Bytes):
     """Reads 4 bytes as a signed, little endian integer"""
 
     _backup_label = "Int32"
@@ -123,7 +124,7 @@ class Int32L(formatbreaker.basictypes.Bytes):
         return int.from_bytes(data, "little", signed=True)
 
 
-class UInt32L(formatbreaker.basictypes.Bytes):
+class UInt32L(Bytes):
     """Reads 4 bytes as a unsigned, little endian integer"""
 
     _backup_label = "UInt32"
@@ -145,7 +146,7 @@ class UInt32L(formatbreaker.basictypes.Bytes):
         return int.from_bytes(data, "little", signed=False)
 
 
-class Int16L(formatbreaker.basictypes.Bytes):
+class Int16L(Bytes):
     """Reads 2 bytes as a signed, little endian integer"""
 
     _backup_label = "Int16"
@@ -167,7 +168,7 @@ class Int16L(formatbreaker.basictypes.Bytes):
         return int.from_bytes(data, "little", signed=True)
 
 
-class UInt16L(formatbreaker.basictypes.Bytes):
+class UInt16L(Bytes):
     """Reads 2 bytes as a unsigned, little endian integer"""
 
     _backup_label = "UInt16"
@@ -189,7 +190,7 @@ class UInt16L(formatbreaker.basictypes.Bytes):
         return int.from_bytes(data, "little", signed=False)
 
 
-class Int8(formatbreaker.basictypes.Byte):
+class Int8(Byte):
     """Reads 1 byte as a signed integer"""
 
     _backup_label = "Int8"
@@ -207,7 +208,7 @@ class Int8(formatbreaker.basictypes.Byte):
         return int.from_bytes(data, "little", signed=True)
 
 
-class UInt8(formatbreaker.basictypes.Byte):
+class UInt8(Byte):
     """Reads 1 byte as an unsigned integer"""
 
     _backup_label = "UInt8"
@@ -225,7 +226,7 @@ class UInt8(formatbreaker.basictypes.Byte):
         return int.from_bytes(data, "little", signed=False)
 
 
-class Float32L(formatbreaker.basictypes.Bytes):
+class Float32L(Bytes):
     """Reads 4 bytes as a little endian single precision float"""
 
     _backup_label = "Float32"
@@ -250,7 +251,7 @@ class Float32L(formatbreaker.basictypes.Bytes):
         return struct.unpack("<f", data)[0]
 
 
-class Float64L(formatbreaker.basictypes.Bytes):
+class Float64L(Bytes):
     """Reads 8 bytes as a little endian double precision float"""
 
     _backup_label = "Float64"
@@ -275,7 +276,7 @@ class Float64L(formatbreaker.basictypes.Bytes):
         return struct.unpack("<d", data)[0]
 
 
-class UuidL(formatbreaker.basictypes.Bytes):
+class UuidL(Bytes):
     """Reads 16 bytes as a UUID (Little Endian words)"""
 
     _backup_label = "UUID"
@@ -297,7 +298,7 @@ class UuidL(formatbreaker.basictypes.Bytes):
         return uuid.UUID(bytes_le=data)
 
 
-class UuidB(formatbreaker.basictypes.Bytes):
+class UuidB(Bytes):
     """Reads 16 bytes as a UUID (Big Endian words)"""
 
     _backup_label = "UUID"

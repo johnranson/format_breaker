@@ -4,13 +4,15 @@ from __future__ import annotations
 from typing import ClassVar, Any, override
 import copy
 import io
-import formatbreaker.util as fbu
-import formatbreaker.datasource as ds
+from formatbreaker.util import validate_address_or_length
+from formatbreaker.datasource import DataManager, AddrType
 import collections
 
 
 class Parser:
     """This is the base class for all objects that parse data"""
+
+    __slots__ = ("__label", "__address")
 
     __label: str | None
     __address: int | None
@@ -22,7 +24,7 @@ class Parser:
 
     @_label.setter
     def _label(self, label: str | None) -> None:
-        if label is not None and not isinstance(label, str):
+        if label is not None and not isinstance(label, str):  # type: ignore
             raise TypeError("Parser labels must be strings")
         self.__label = label
 
@@ -33,7 +35,7 @@ class Parser:
     @_address.setter
     def _address(self, address: int | None) -> None:
         if address is not None:
-            fbu.validate_address_or_length(address)
+            validate_address_or_length(address)
         self.__address = address
 
     def __init__(self, label: str | None = None, address: int | None = None) -> None:
@@ -45,7 +47,7 @@ class Parser:
         self._address = address
         self._label = label
 
-    def _parse(self, data: ds.DataSource, context: Context) -> None:
+    def _parse(self, data: DataManager, context: Context) -> None:
         """Parses data into a dictionary
 
         Should be overridden by any subclass that reads data. Does
@@ -58,7 +60,7 @@ class Parser:
         """
         # pylint: disable=unused-argument
 
-    def _space_and_parse(self, data: ds.DataSource, context: Context) -> None:
+    def _space_and_parse(self, data: DataManager, context: Context) -> None:
         """Reads to the target location and then parses normally
 
         Args:
@@ -70,7 +72,7 @@ class Parser:
             _spacer(data, context, self._address)
         self._parse(data, context)
 
-    def parse(self, data: bytes | io.BufferedIOBase) -> dict:
+    def parse(self, data: bytes | io.BufferedIOBase) -> dict[str, Any]:
         """Parse the provided data from the beginning
 
         Args:
@@ -80,8 +82,8 @@ class Parser:
             A dictionary of field labels and parsed values
         """
         context = Context()
-        with ds.DataSource(src=data) as datasource:
-            self._space_and_parse(datasource, context)
+        with DataManager(src=data) as manager:
+            self._space_and_parse(manager, context)
         return dict(context)
 
     def __call__(self, label: str | None = None, address: int | None = None) -> Parser:
@@ -129,7 +131,7 @@ class Parser:
             label = self._label
         elif self._backup_label:
             if addr is not None:
-                fbu.validate_address_or_length(addr)
+                validate_address_or_length(addr)
                 label = self._backup_label + "_" + hex(addr)
             else:
                 label = self._backup_label
@@ -168,7 +170,9 @@ class Block(Parser):
     """A container that holds ordered data fields and provides a mechanism for
     parsing them in order"""
 
-    _addr_type: ds.AddrType
+    __slots__ = ("_addr_type", "_relative", "_elements", "_optional")
+
+    _addr_type: AddrType
     _relative: bool
     _elements: tuple[Parser, ...]
     _optional: bool
@@ -177,7 +181,7 @@ class Block(Parser):
         self,
         *args: Parser,
         relative: bool = True,
-        addr_type: ds.AddrType | str = ds.AddrType.PARENT,
+        addr_type: AddrType | str = AddrType.PARENT,
         optional: bool = False,
         **kwargs: Any,
     ) -> None:
@@ -188,14 +192,14 @@ class Block(Parser):
             bitwise: If True, `self.elements` is addressed and parsed bitwise
             **kwargs: Arguments to be passed to the superclass constructor
         """
-        if not isinstance(relative, bool):
+        if not isinstance(relative, bool):  # type: ignore
             raise TypeError
-        if not all(isinstance(item, Parser) for item in args):
+        if not all(isinstance(item, Parser) for item in args):  # type: ignore
             raise TypeError
-        if isinstance(addr_type, ds.AddrType):
+        if isinstance(addr_type, AddrType):
             self._addr_type = addr_type
         else:
-            self._addr_type = ds.AddrType[addr_type]
+            self._addr_type = AddrType[addr_type]
 
         self._relative = relative
         self._optional = optional
@@ -206,7 +210,7 @@ class Block(Parser):
     @override
     def _parse(
         self,
-        data: ds.DataSource,
+        data: DataManager,
         context: Context,
     ) -> None:
         """Parse the data using each Parser sequentially.
@@ -232,14 +236,13 @@ class Block(Parser):
                 element._space_and_parse(  # pylint: disable=protected-access
                     new_data, out_context
                 )
+            if self._label:
+                self._store(context, dict(out_context))
+            else:
+                out_context.update_ext()
 
-        if self._label:
-            self._store(context, dict(out_context))
-        else:
-            out_context.update_ext()
 
-
-def Optional(*args, **kwargs) -> Block:  # pylint: disable=invalid-name
+def Optional(*args: Any, **kwargs: Any) -> Block:  # pylint: disable=invalid-name
     """Shorthand for generating an optional `Block`.
 
     Takes the same arguments as a `Block`.
@@ -251,7 +254,7 @@ def Optional(*args, **kwargs) -> Block:  # pylint: disable=invalid-name
 
 
 def _spacer(
-    data: ds.DataSource,
+    data: DataManager,
     context: Context,
     stop_addr: int,
 ):
@@ -276,7 +279,7 @@ def _spacer(
     context[spacer_label] = data.read(length)
 
 
-class Context(collections.ChainMap):
+class Context(collections.ChainMap[str, Any]):
     """Contains the results from parsing in a nested manner, allowing reverting failed
     optional data reads"""
 

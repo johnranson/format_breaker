@@ -6,7 +6,7 @@
 import pytest
 from formatbreaker.core import Parser, Block, Context, _spacer
 from formatbreaker.bitwisebytes import BitwiseBytes
-from formatbreaker.datasource import DataSource
+from formatbreaker.datasource import DataManager
 from formatbreaker.exceptions import FBNoDataError
 import io
 
@@ -108,7 +108,7 @@ class TestParser:
         }
 
     def test_default_parser_performs_no_op(self, labeled_dt, context):
-        with DataSource(b"123567") as data:
+        with DataManager(b"123567") as data:
             labeled_dt._parse(data, context)
 
         assert context == {}
@@ -116,7 +116,7 @@ class TestParser:
     def test_space_and_parse_raises_error_past_required_address(
         self, labeled_dt, context
     ):
-        with DataSource(b"123567") as data:
+        with DataManager(b"123567") as data:
             data.read(5)
             with pytest.raises(IndexError):
                 labeled_dt._space_and_parse(data, context)
@@ -124,7 +124,7 @@ class TestParser:
     def test_space_and_parse_does_not_create_spacer_if_at_address(
         self, labeled_dt, context
     ):
-        with DataSource(b"123567") as data:
+        with DataManager(b"123567") as data:
             data.read(3)
             labeled_dt._space_and_parse(data, context)
             assert not bool(context)
@@ -132,7 +132,7 @@ class TestParser:
     def test_space_and_parse_creates_spacer_if_before_required_address(
         self, labeled_dt, context
     ):
-        with DataSource(b"123567") as data:
+        with DataManager(b"123567") as data:
             data.read(1)
             labeled_dt._space_and_parse(data, context)
 
@@ -295,13 +295,13 @@ class TestBlock:
 @pytest.fixture
 def spacer_stream_data():
     dat = bytes(range(128))
-    return DataSource(io.BytesIO(dat))
+    return DataManager(io.BytesIO(dat))
 
 
 @pytest.fixture
 def spacer_bytes_data():
     dat = bytes(range(256)) * 16
-    return DataSource(dat)
+    return DataManager(dat)
 
 
 spacer_data = bytes(range(128))
@@ -314,7 +314,7 @@ class TestSpacer:
         return Context()
 
     def test_spacer_generates_expected_dictionary_and_return_value(self, context):
-        with DataSource(spacer_data) as data:
+        with DataManager(spacer_data) as data:
             data.read(1)
             _spacer(data, context, 6)
             assert context["spacer_0x1-0x5"] == bytes(spacer_data[1:6])
@@ -322,28 +322,28 @@ class TestSpacer:
     def test_duplicate_spacer_generates_expected_dictionary_and_return_value(
         self, context
     ):
-        with DataSource(spacer_data) as data:
+        with DataManager(spacer_data) as data:
             context["spacer_0x1-0x5"] = bytes(spacer_data[1:6])
             data.read(1)
             _spacer(data, context, 6)
             assert context["spacer_0x1-0x5 1"] == bytes(spacer_data[1:6])
 
     def test_spacer_works_with_entire_input(self, context):
-        with DataSource(spacer_data) as data:
+        with DataManager(spacer_data) as data:
             _spacer(data, context, 128)
             assert context["spacer_0x0-0x7f"] == bytes(spacer_data)
 
     def test_length_one_beyond_input_size_raises_error(self, context):
-        with DataSource(spacer_data) as data:
+        with DataManager(spacer_data) as data:
             with pytest.raises(FBNoDataError):
                 _spacer(data, context, 129)
 
     def test_negative_address_raises_error(self, context):
-        with DataSource(spacer_data) as data:
+        with DataManager(spacer_data) as data:
             with pytest.raises(IndexError):
                 _spacer(data, context, -1)
 
     def test_zero_length_spacer_is_no_op(self, context):
-        with DataSource(spacer_data) as data:
+        with DataManager(spacer_data) as data:
             _spacer(data, context, 0)
             assert context == {}

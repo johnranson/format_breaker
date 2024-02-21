@@ -7,7 +7,7 @@ import pytest
 from formatbreaker.core import Block
 import formatbreaker.basictypes as bt
 from formatbreaker.decoders import UInt8
-from formatbreaker.datasource import DataSource, AddrType
+from formatbreaker.datasource import DataManager, AddrType
 from formatbreaker.exceptions import FBError
 from formatbreaker.core import Context
 
@@ -145,7 +145,7 @@ class TestVarBytes:
 
 
 def test_pad_to_address_bytewise():
-    with DataSource(b"123456") as data:
+    with DataManager(b"123456") as data:
         data.read_bytes(1)
         context = Context()
         bt.PadToAddress(5)._space_and_parse(
@@ -160,7 +160,7 @@ def test_pad_to_address_not_callable():
 
 
 def test_pad_to_address_bitwise():
-    with DataSource(b"\xF0") as data:
+    with DataManager(b"\xF0") as data:
         context = Context()
         with data.make_child(addr_type=AddrType.BIT) as new_data:
             new_data.read(1)
@@ -175,7 +175,7 @@ def test_pad_to_address_bitwise():
 
 
 def test_remnant_bytewise():
-    with DataSource(b"123456") as data:
+    with DataManager(b"123456") as data:
         data.read_bytes(1)
         context = Context()
         bt.Remnant("name", 1)._parse(data, context)  # pylint: disable=protected-access
@@ -191,7 +191,7 @@ def test_remnant_bytewise():
 
 
 def test_remant_bitwise():
-    with DataSource(b"\xF0") as data:
+    with DataManager(b"\xF0") as data:
         context = Context()
         with data.make_child(addr_type=AddrType.BIT) as new_data:
             new_data.read(1)
