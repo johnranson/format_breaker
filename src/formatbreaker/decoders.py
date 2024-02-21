@@ -95,7 +95,7 @@ class BitWordConst(BitWord):
         if isinstance(value, BitwiseBytes):
             self._value = BitwiseBytes(value)
             bit_length = len(self._value)
-        elif isinstance(value, tuple):
+        elif isinstance(value, tuple):  # type: ignore
             (dat, bit_length) = value
             self._value = BitwiseBytes(dat, 0, bit_length)
         else:

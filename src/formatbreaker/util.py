@@ -1,29 +1,26 @@
 """The module contains utility functions for the package"""
 
-from __future__ import annotations
-from typing import Any
-
 
 def validate_address_or_length(
-    address: Any, amin: int = 0, amax: int | None = None
+    addr: int, amin: int = 0, amax: int | None = None
 ) -> None:
     """Ensure that a value is a valid address or length
 
     Args:
-        address: The address to be validated
-        amin: The minimum valid value for `address`
-        amax: The maximum valid value for `address`, if defined
+        addr: The address to be validated
+        amin: The minimum valid value for `addr`
+        amax: The maximum valid value for `addr`, if defined
 
     Raises:
-        TypeError: `address` is not int type
-        IndexError: `address` is not in [`min`, `max`]
+        TypeError: `addr` is not int type
+        IndexError: `addr` is not in [`min`, `max`]
     """
-    if not isinstance(address, int):
+    if not isinstance(addr, int):  # type: ignore
         raise TypeError
-    if address < amin:
+    if addr < amin:
         raise IndexError
     if amax is not None:
-        if address > amax:
+        if addr > amax:
             raise IndexError
 
 
