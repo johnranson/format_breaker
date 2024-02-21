@@ -5,7 +5,7 @@ The classes in this module add functionality to existing parsers by adding
 """
 
 from __future__ import annotations
-from typing import Any, override
+from typing import override
 import struct
 import uuid
 from formatbreaker.basictypes import Byte, Bytes, BitWord, Bit
@@ -20,7 +20,13 @@ class ByteFlag(Byte):
     _backup_label = "Flag"
 
     @override
-    def __init__(self, true_value: bytes | int | None = None, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        true_value: bytes | int | None = None,
+        label: str | None = None,
+        *,
+        addr: int | None = None,
+    ) -> None:
         """
         Args:
             true_value: The only value which the parser will interpret as True, if
@@ -42,7 +48,7 @@ class ByteFlag(Byte):
         if true_value == 0:
             raise ValueError
 
-        super().__init__(**kwargs)
+        super().__init__(label, addr=addr)
 
     @override
     def _decode(self, data: bytes) -> bool:
@@ -60,9 +66,11 @@ class BitConst(Bit):
     _backup_label = "Const"
 
     @override
-    def __init__(self, value: bool, **kwargs: Any) -> None:
+    def __init__(
+        self, value: bool, label: str | None = None, *, addr: int | None = None
+    ) -> None:
         self._value = bool(value)
-        super().__init__(**kwargs)
+        super().__init__(label, addr=addr)
 
     @override
     def _decode(self, data: bool) -> bool:
@@ -78,15 +86,28 @@ class BitWordConst(BitWord):
 
     @override
     def __init__(
-        self, value: BitwiseBytes | bytes, bit_length: int, **kwargs: Any
+        self,
+        value: BitwiseBytes | tuple[bytes, int],
+        label: str | None = None,
+        *,
+        addr: int | None = None,
     ) -> None:
+        if isinstance(value, BitwiseBytes):
+            self._value = BitwiseBytes(value)
+            bit_length = len(self._value)
+        elif isinstance(value, tuple):
+            (dat, bit_length) = value
+            self._value = BitwiseBytes(dat, 0, bit_length)
+        else:
+            raise TypeError
 
-        self._value = BitwiseBytes(value, 0, bit_length)
-        super().__init__(bit_length, **kwargs)
+        super().__init__(bit_length, label, addr=addr)
 
     @override
     def _decode(self, data: BitwiseBytes) -> int:
         if self._value != data:
+            print(int(self._value))
+            print(int(data))
             raise FBError("Constant not matched")
         return int(self._value)
 
@@ -108,8 +129,8 @@ class Int32L(Bytes):
     _backup_label = "Int32"
 
     @override
-    def __init__(self, **kwargs: Any) -> None:
-        super().__init__(4, **kwargs)
+    def __init__(self, label: str | None = None, *, addr: int | None = None) -> None:
+        super().__init__(4, label, addr=addr)
 
     @override
     def _decode(self, data: bytes) -> int:
@@ -130,8 +151,8 @@ class UInt32L(Bytes):
     _backup_label = "UInt32"
 
     @override
-    def __init__(self, **kwargs: Any) -> None:
-        super().__init__(4, **kwargs)
+    def __init__(self, label: str | None = None, *, addr: int | None = None) -> None:
+        super().__init__(4, label, addr=addr)
 
     @override
     def _decode(self, data: bytes) -> int:
@@ -152,8 +173,8 @@ class Int16L(Bytes):
     _backup_label = "Int16"
 
     @override
-    def __init__(self, **kwargs: Any) -> None:
-        super().__init__(2, **kwargs)
+    def __init__(self, label: str | None = None, *, addr: int | None = None) -> None:
+        super().__init__(2, label, addr=addr)
 
     @override
     def _decode(self, data: bytes) -> int:
@@ -174,8 +195,8 @@ class UInt16L(Bytes):
     _backup_label = "UInt16"
 
     @override
-    def __init__(self, **kwargs: Any) -> None:
-        super().__init__(2, **kwargs)
+    def __init__(self, label: str | None = None, *, addr: int | None = None) -> None:
+        super().__init__(2, label, addr=addr)
 
     @override
     def _decode(self, data: bytes) -> int:
@@ -232,7 +253,7 @@ class Float32L(Bytes):
     _backup_label = "Float32"
 
     @override
-    def __init__(self, **kwargs: Any) -> None:
+    def __init__(self, label: str | None = None, *, addr: int | None = None) -> None:
         """Decodes a single precision floating point number from little endian
         bytes.
 
@@ -244,7 +265,7 @@ class Float32L(Bytes):
             The decoded number
         """
 
-        super().__init__(4, **kwargs)
+        super().__init__(4, label, addr=addr)
 
     @override
     def _decode(self, data: bytes) -> float:
@@ -257,8 +278,8 @@ class Float64L(Bytes):
     _backup_label = "Float64"
 
     @override
-    def __init__(self, **kwargs: Any) -> None:
-        super().__init__(8, **kwargs)
+    def __init__(self, label: str | None = None, *, addr: int | None = None) -> None:
+        super().__init__(8, label, addr=addr)
 
     @override
     def _decode(self, data: bytes) -> float:
@@ -282,8 +303,8 @@ class UuidL(Bytes):
     _backup_label = "UUID"
 
     @override
-    def __init__(self, **kwargs: Any) -> None:
-        super().__init__(16, **kwargs)
+    def __init__(self, label: str | None = None, *, addr: int | None = None) -> None:
+        super().__init__(16, label, addr=addr)
 
     @override
     def _decode(self, data: bytes) -> uuid.UUID:
@@ -304,8 +325,8 @@ class UuidB(Bytes):
     _backup_label = "UUID"
 
     @override
-    def __init__(self, **kwargs: Any) -> None:
-        super().__init__(16, **kwargs)
+    def __init__(self, label: str | None = None, *, addr: int | None = None) -> None:
+        super().__init__(16, label, addr=addr)
 
     @override
     def _decode(self, data: bytes) -> uuid.UUID:

@@ -51,7 +51,7 @@ class Bytes(Parser):
 
     @override
     def __init__(
-        self, byte_length: int, label: str | None = None, *, address: int | None = None
+        self, byte_length: int, label: str | None = None, *, addr: int | None = None
     ) -> None:
         """
         Args:
@@ -60,7 +60,7 @@ class Bytes(Parser):
         """
         validate_address_or_length(byte_length, 1)
         self._byte_length = byte_length
-        super().__init__(label, addr=address)
+        super().__init__(label, addr=addr)
 
     @override
     def _parse(self, data: DataManager, context: Context) -> None:
@@ -88,7 +88,7 @@ class VarBytes(Parser):
 
     @override
     def __init__(
-        self, label: str | None = None, *, address: int | None = None, source: str
+        self, label: str | None = None, *, addr: int | None = None, source: str
     ) -> None:  # source is keyword-only to avoid ambiguity with label
         """
         Args:
@@ -99,7 +99,7 @@ class VarBytes(Parser):
         if not isinstance(source, str):  # type: ignore
             raise TypeError
         self._length_key = source
-        super().__init__(label, addr=address)
+        super().__init__(label, addr=addr)
 
     @override
     def _parse(self, data: DataManager, context: Context) -> None:
@@ -128,16 +128,16 @@ class PadToAddress(Parser):
 
     _default_addr_type = AddrType.BYTE
 
-    def __call__(self, name: str | None = None, address: int | None = None) -> Parser:
+    def __call__(self, name: str | None = None, *, addr: int | None = None) -> Parser:
         raise NotImplementedError
 
     @override
-    def __init__(self, address: int) -> None:
+    def __init__(self, addr: int) -> None:
         """
         Args:
-            address: The address up to which to read
+            addr: The address up to which to read
         """
-        super().__init__(addr=address)
+        super().__init__(addr=addr)
 
 
 class Remnant(Parser):
@@ -202,7 +202,7 @@ class BitWord(Parser):
 
     @override
     def __init__(
-        self, bit_length: int, label: str | None = None, *, address: int | None = None
+        self, bit_length: int, label: str | None = None, *, addr: int | None = None
     ) -> None:
         """
         Args:
@@ -211,7 +211,7 @@ class BitWord(Parser):
         """
         validate_address_or_length(bit_length, 1)
         self._bit_length = bit_length
-        super().__init__(label, addr=address)
+        super().__init__(label, addr=addr)
 
     @override
     def _parse(self, data: DataManager, context: Context) -> None:

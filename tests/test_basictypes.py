@@ -66,29 +66,29 @@ class TestBytes:
 
     @pytest.mark.parametrize("bytedata,bytesize", [(b"506", 1)])
     def test_reads_positional_bytes(self, bytedata, bytesize):
-        assert bt.Bytes(1, "name", address=0).parse(bytedata) == {
+        assert bt.Bytes(1, "name", addr=0).parse(bytedata) == {
             "name": bytes(bytedata[0:bytesize])
         }
-        assert bt.Bytes(2, "name", address=bytesize).parse(bytedata)["name"] == bytes(
+        assert bt.Bytes(2, "name", addr=bytesize).parse(bytedata)["name"] == bytes(
             bytedata[bytesize : 3 * bytesize]
         )
-        assert bt.Bytes(1, "name", address=2 * bytesize).parse(bytedata)[
+        assert bt.Bytes(1, "name", addr=2 * bytesize).parse(bytedata)[
             "name"
         ] == bytes(bytedata[2 * bytesize : 3 * bytesize])
 
-        assert bt.Bytes(1, address=0).parse(bytedata) == {
+        assert bt.Bytes(1, addr=0).parse(bytedata) == {
             "Bytes_0x0": bytes(bytedata[0:bytesize])
         }
-        assert bt.Bytes(2, address=bytesize).parse(bytedata)[
+        assert bt.Bytes(2, addr=bytesize).parse(bytedata)[
             "Bytes_" + hex(bytesize)
         ] == bytes(bytedata[bytesize : 3 * bytesize])
-        assert bt.Bytes(1, address=2 * bytesize).parse(bytedata)[
+        assert bt.Bytes(1, addr=2 * bytesize).parse(bytedata)[
             "Bytes_" + hex(bytesize * 2)
         ] == bytes(bytedata[2 * bytesize : 3 * bytesize])
 
     def test_addressed_fails_with_no_byte_avail(self):
         with pytest.raises(FBError):
-            assert bt.Bytes(1, "name", address=0).parse(b"")
+            assert bt.Bytes(1, "name", addr=0).parse(b"")
 
     def test_unaddressed_fails_with_no_byte_avail(self):
         with pytest.raises(FBError):
@@ -96,7 +96,7 @@ class TestBytes:
 
     def test_byte_address_out_of_range_raises_error(self):
         with pytest.raises(FBError):
-            assert bt.Bytes(1, "name", address=3).parse(b"505")
+            assert bt.Bytes(1, "name", addr=3).parse(b"505")
 
 
 class TestVarBytes:
@@ -130,7 +130,7 @@ class TestVarBytes:
     @pytest.fixture
     def test_block_address(self):
         return Block(
-            UInt8("length"), bt.VarBytes("results", address=5, source="length")
+            UInt8("length"), bt.VarBytes("results", addr=5, source="length")
         )
 
     def test_reads_positional_bytes(self, test_block_address):
@@ -140,7 +140,7 @@ class TestVarBytes:
     def test_block_bitwise(self):
         return Block(
             UInt8("length"),
-            bt.VarBytes("results", address=12, source="length"),
+            bt.VarBytes("results", addr=12, source="length"),
             bt.PadToAddress(24),
             bitwise=True,
         )
