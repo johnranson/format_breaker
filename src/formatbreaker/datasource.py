@@ -5,7 +5,7 @@ import io
 import collections
 import bisect
 import enum
-import formatbreaker.bitwisebytes as bitwisebytes
+from formatbreaker.bitwisebytes import BitwiseBytes, bitlen
 import formatbreaker.exceptions as fbe
 import formatbreaker.util as fbu
 
@@ -15,89 +15,113 @@ DATA_BUFFER_SIZE = 1024 * 8
 
 
 class DataBuffer:
-    """This class provides buffered, bitwise addressable interface to bytes or a
+    """This class provides a buffered, bitwise addressable interface to bytes or a
     BufferIOBase"""
-    __slots__ = ("__bounds", "__buffers", "__stream_eof", "__stream")
-    __bounds: collections.deque[int]
-    __buffers: collections.deque[bytes]
-    __stream_eof: bool
-    __stream: io.BufferedIOBase
+
+    __slots__ = ("_bounds", "_buffers", "_stream_eof", "_stream")
+    _bounds: collections.deque[int]
+    _buffers: collections.deque[bytes]
+    _stream_eof: bool
+    _stream: io.BufferedIOBase
 
     def __init__(
         self,
-        src: bytes | io.BufferedIOBase | DataSource,
+        src: bytes | io.BufferedIOBase,
     ) -> None:
-
-        self.__bounds = collections.deque([0])
-        self.__buffers = collections.deque()
+        """
+        Args:
+            src: The source of the data to be buffered
+        """
+        self._bounds = collections.deque([0])
+        self._buffers = collections.deque()
         if isinstance(src, bytes):
-            self.__buffers.append(src)
-            self.__bounds.append(bitwisebytes.bitlen(src))
-            self.__stream_eof = True
+            self._stream_eof = True  # This prevents reading from a non-existent string
+            self._buffers.append(src)
+            self._bounds.append(bitlen(src))
         elif isinstance(src, io.BufferedIOBase):
-            self.__stream = src
-            self.__stream_eof = False
-            self._read_into_buffer(DATA_BUFFER_SIZE)
+            self._stream = src
+            self._stream_eof = False
+            self._read_from_stream(DATA_BUFFER_SIZE)
         else:
             raise NotImplementedError
 
-    def _load_data_into_buffers(self, start: int, bit_length: int | None) -> int:
+    def get_data(self, start: int, bit_length: int | None) -> tuple[BitwiseBytes, int]:
+        """Generates a single `BitwiseBytes` of the address range requested
+
+        This method will attempt to read data if it is not yet stored in `_buffers`
+
+        Args:
+            start: Address of the first bit to be included
+            bit_length: The number of bits to return
+        Returns:
+            A tuple with the bits requested and the address of the next bit after the
+            data
+        """
         if start < self.lower_bound:
             raise IndexError("Addressed data no longer in DataBuffer")
-
         if bit_length is not None:
             if bit_length < 0:
                 raise IndexError("Cannot read negative length.")
             stop = start + bit_length
             if stop > self.upper_bound:
                 bits_needed = stop - self.upper_bound
-                if self._read_into_buffer(bits_needed) < bits_needed:
+                if self._read_from_stream(bits_needed) < bits_needed:
                     raise fbe.FBNoDataError
         else:
-            self._read_into_buffer()
+            self._read_from_stream()
             stop = self.upper_bound
-        return self._get_data_from_buffers(start, stop), stop
+        return self._concatenate_bits(start, stop), stop
 
-    def _get_data_from_buffers(self, start: int, stop: int):
+    def _concatenate_bits(self, start: int, stop: int):
+        """Generates a single `BitwiseBytes` of the address range requested
+
+        This method relies on the data already existing in `_buffers`
+
+        Args:
+            start: Address of the first bit to be included
+            stop: Address of the first bit not included after the range
+
+        Returns: The bits requested
+        """
         assert stop > start >= 0
 
-        start_buffer = bisect.bisect_right(self.__bounds, start) - 1
+        start_buffer = bisect.bisect_right(self._bounds, start) - 1
         assert start_buffer >= 0
-        assert start_buffer < len(self.__buffers)
+        assert start_buffer < len(self._buffers)
 
-        stop_buffer = bisect.bisect_left(self.__bounds, stop) - 1
+        stop_buffer = bisect.bisect_left(self._bounds, stop) - 1
         assert start_buffer >= 0
-        assert start_buffer < len(self.__buffers)
+        assert start_buffer < len(self._buffers)
 
-        start_buffer_start = start - self.__bounds[start_buffer]
-        stop_buffer_stop = stop - self.__bounds[stop_buffer]
+        start_buffer_start = start - self._bounds[start_buffer]
+        stop_buffer_stop = stop - self._bounds[stop_buffer]
 
         start_buffer_start = fbu.downtobyte(start_buffer_start)
         stop_buffer_stop = fbu.uptobyte(stop_buffer_stop)
 
         if start_buffer == stop_buffer:
-            byte_result = self.__buffers[start_buffer][
+            byte_result = self._buffers[start_buffer][
                 start_buffer_start:stop_buffer_stop
             ]
 
         elif start_buffer + 1 == stop_buffer:
             byte_result = (
-                self.__buffers[start_buffer][start_buffer_start:]
-                + self.__buffers[stop_buffer][:stop_buffer_stop]
+                self._buffers[start_buffer][start_buffer_start:]
+                + self._buffers[stop_buffer][:stop_buffer_stop]
             )
         else:
-            byte_result = self.__buffers[start_buffer][start_buffer_start:]
+            byte_result = self._buffers[start_buffer][start_buffer_start:]
             for i in range(start_buffer + 1, stop_buffer):
-                byte_result = byte_result + self.__buffers[i]
-            byte_result = byte_result + self.__buffers[stop_buffer][:stop_buffer_stop]
+                byte_result = byte_result + self._buffers[i]
+            byte_result = byte_result + self._buffers[stop_buffer][:stop_buffer_stop]
 
         start_slice = start % 8
         stop_slice = start_slice + stop - start
-        result = bitwisebytes.BitwiseBytes(byte_result, start_slice, stop_slice)
+        result = BitwiseBytes(byte_result, start_slice, stop_slice)
         return result
 
-    def _read_into_buffer(self, bit_length=None) -> int:
-        """Reads bytes from the underlying source into a buffer
+    def _read_from_stream(self, bit_length=None) -> int:
+        """Reads bytes from the underlying stream into a buffer
 
         Args:
             bit_length: The minimum number of bits to read into the buffer. Reads all
@@ -109,22 +133,22 @@ class DataBuffer:
         Returns:
             Returns the number of bytes read.
         """
-        if self.__stream_eof:
+        if self._stream_eof:
             if bit_length is None:
                 return 0
             raise fbe.FBNoDataError
         if bit_length is not None:
             byte_length = fbu.uptobyte(max(DATA_BUFFER_SIZE, bit_length))
             read_length = byte_length * 8
-            data = self.__stream.read(byte_length)
+            data = self._stream.read(byte_length)
         else:
             read_length = float("inf")
-            data = self.__stream.read()
-            self.__stream_eof = True
-        data_length = bitwisebytes.bitlen(data)
-        self.__stream_eof = data_length < read_length
-        self.__bounds.append(self.__bounds[-1] + data_length)
-        self.__buffers.append(data)
+            data = self._stream.read()
+            self._stream_eof = True
+        data_length = bitlen(data)
+        self._stream_eof = data_length < read_length
+        self._bounds.append(self.upper_bound + data_length)
+        self._buffers.append(data)
         return data_length
 
     @property
@@ -134,7 +158,7 @@ class DataBuffer:
         Returns:
             The bit address of the first byte in the buffers
         """
-        return self.__bounds[0]
+        return self._bounds[0]
 
     @property
     def upper_bound(self) -> int:
@@ -143,19 +167,19 @@ class DataBuffer:
         Returns:
             The bit address after the last byte in the buffers
         """
-        return self.__bounds[-1]
+        return self._bounds[-1]
 
     def trim(self, addr) -> None:
         """Discard any buffers that have been read and are unneeded"""
         assert addr <= self.upper_bound
         # This would imply that the cursor points to data we haven't read
 
-        assert len(self.__bounds) > 1
+        assert len(self._bounds) > 1
         # This would imply that we have have no buffers
 
-        while addr > self.__bounds[1]:
-            del self.__buffers[0]
-            del self.__bounds[0]
+        while addr > self._bounds[1]:
+            del self._buffers[0]
+            del self._bounds[0]
 
 
 class DataSource:
@@ -164,25 +188,25 @@ class DataSource:
 
     __slots__ = (
         "_bufferer",
-        "__with_safe",
-        "__has_child",
-        "__revertible",
-        "__trim_safe",
-        "__cursor",
-        "__parent",
-        "__base",
-        "__addr_type",
+        "_with_safe",
+        "_has_child",
+        "_revertible",
+        "_trim_safe",
+        "_cursor",
+        "_parent",
+        "_base",
+        "_addr_type",
     )
 
     _bufferer: DataBuffer
-    __with_safe: bool
-    __has_child: bool
-    __revertible: bool
-    __trim_safe: bool
-    __cursor: int
-    __parent: DataSource | None
-    __base: int
-    __addr_type: AddrType
+    _with_safe: bool
+    _has_child: bool
+    _revertible: bool
+    _trim_safe: bool
+    _cursor: int
+    _parent: DataSource | None
+    _base: int
+    _addr_type: AddrType
 
     def __init__(
         self,
@@ -190,60 +214,53 @@ class DataSource:
         relative: bool = True,
         addr_type: AddrType = AddrType.PARENT,
         revertible: bool = False,
-    ):
-        self.__with_safe = False
-        self.__has_child = False
-        self.__revertible = revertible
+    ) -> None:
+        self._with_safe = False
+        self._revertible = revertible
+        self._has_child = False
+        self._addr_type = addr_type
         if isinstance(src, DataSource):
-            self.__trim_safe = src.__trim_safe and not revertible
-            self._bufferer = src._bufferer
-            self.__cursor = src.__cursor
-            self.__parent = src
-            self.__parent.__has_child = True
-            if relative:
-                self.__base = self.__cursor
-            else:
-                self.__base = src.__base
 
+            self._parent = src
+            self._parent._has_child = True
+            self._trim_safe = src._trim_safe and not revertible
+            self._bufferer = src._bufferer
+            self._cursor = src._cursor
+            if relative:
+                self._base = self._cursor
+            else:
+                self._base = src._base
+            if self._addr_type == AddrType.PARENT:
+                self._addr_type = src._addr_type
         else:
             # No parent
-            self.__trim_safe = not revertible
-            self.__parent = None  # Must be first
-            if addr_type == AddrType.PARENT:
-                self.__addr_type = AddrType.BYTE
-            else:
-                self.__addr_type == addr_type
-
+            self._parent = None
+            self._trim_safe = not revertible
             self._bufferer = DataBuffer(src)
+            self._cursor = 0
+            self._base = 0
+            if self._addr_type == AddrType.PARENT:
+                self._addr_type = AddrType.BYTE
 
-            self.__cursor = 0
-            self.__base = 0
+        if self._addr_type == AddrType.BYTE_STRICT:
+            if self._cursor % 8:
+                raise fbe.FBError("Strict byte addr_type must start on a byte boundary")
 
-        match addr_type:
-            case AddrType.PARENT:
-                if self.__parent is not None:
-                    self.__addr_type = src.__addr_type
-                else:
-                    self.__addr_type = AddrType.BYTE
-            case AddrType.BYTE:
-                self.__addr_type = AddrType.BYTE
-            case AddrType.BYTE_STRICT:
-                self.__addr_type = AddrType.BYTE
-                if src.__cursor % 8:
-                    raise fbe.FBError(
-                        "Strict byte addr_type must start on a byte boundary"
-                    )
-            case AddrType.BIT:
-                self.__addr_type = AddrType.BIT
-
-        if self.__parent and self.__parent.__addr_type != addr_type and not relative:
+        if self._parent and self._parent._addr_type != addr_type and not relative:
             raise RuntimeError("Address type changes must use relative addr_type")
 
-
     def fail_if_unsafe(self) -> None:
-        if self.__has_child:
+        """Raises an error if it's not safe to use this instance
+
+        Called by other methods to prevent use if this instance has a child in use,
+        or if this instance was generated outside a with statement
+
+        Raises:
+            RuntimeError: Raised if it's unsafe to use this instance
+        """
+        if self._has_child:
             raise RuntimeError("Attemped to access a DataSource with a child.")
-        if not self.__with_safe:
+        if not self._with_safe:
             raise RuntimeError("Datasource used outside a with statement.")
 
     def read(self, length: int | None = None) -> bytes:
@@ -259,7 +276,7 @@ class DataSource:
         """
         self.fail_if_unsafe()
 
-        if self.__addr_type == AddrType.BYTE:
+        if self._addr_type == AddrType.BYTE:
             return self.read_bytes(length)
         return bytes(self.read_bits(length))
 
@@ -279,7 +296,7 @@ class DataSource:
             return bytes(self.read_bits(bit_length=byte_length * 8))
         return bytes(self.read_bits())
 
-    def read_bits(self, bit_length: int | None = None) -> bitwisebytes.BitwiseBytes:
+    def read_bits(self, bit_length: int | None = None) -> BitwiseBytes:
         """Reads bits from the buffer
 
         Args:
@@ -289,30 +306,34 @@ class DataSource:
             The requested bits, if available
         """
         self.fail_if_unsafe()
-        start_addr = self.__cursor
+        start_addr = self._cursor
 
         if bit_length is not None:
             if bit_length == 0:
-                return bitwisebytes.BitwiseBytes(b"")
+                return BitwiseBytes(b"")
 
-        (result, stop_addr) = self._bufferer._load_data_into_buffers(start_addr, bit_length)
-        self.__cursor = stop_addr
+        (result, stop_addr) = self._bufferer.get_data(start_addr, bit_length)
+        self._cursor = stop_addr
         self.trim()
         return result
 
     def trim(self) -> None:
         """Discard any buffers that have been read and are unneeded"""
         self.fail_if_unsafe()
-        if not self.__trim_safe:
+        if not self._trim_safe:
             return
 
-        self._bufferer.trim(self.__cursor)
+        self._bufferer.trim(self._cursor)
 
     def make_child(
         self,
-        **kwargs,
+        relative: bool | None = None,
+        addr_type: AddrType | None = None,
+        revertible: bool | None = None,
     ) -> DataSource:
         """Creates a child DataSource with its own cursor and addressing
+
+        Arguments will not be passed if they are None, allowing the constructor defaults
 
         Args:
             relative: Whether the addressing is relative to cursor location on creation
@@ -322,47 +343,55 @@ class DataSource:
         Returns:
             The child DataSource
         """
-        # pylint: disable=protected-access
         self.fail_if_unsafe()
-        child: DataSource = self.__class__(self, **kwargs)
-        return child
+
+        params = {
+            "relative": relative,
+            "addr_type": addr_type,
+            "revertible": revertible,
+        }
+        passed_params = {k: v for k, v in params.items() if v is not None}
+        # Only pass params actually provided.
+
+        return self.__class__(self, **passed_params)
 
     @property
     def address(self) -> int:
         """Returns the current address
 
         Returns:
-            The current read address, bitwise or bytewise according to `self.addr_type`
+            The current read address, relative to `_base`, bitwise or bytewise
+            according to `self.addr_type`
         """
         self.fail_if_unsafe()
-        if self.__addr_type == AddrType.BYTE:
-            return (self.__cursor - self.__base) // 8
-        return self.__cursor - self.__base
+        if self._addr_type == AddrType.BYTE:
+            return (self._cursor - self._base) // 8
+        return self._cursor - self._base
 
     def __enter__(self) -> DataSource:
-        self.__with_safe = True
+        self._with_safe = True
         return self
 
     def __exit__(self, e_type, value, traceback) -> bool:
-        self.__with_safe = False  # Protects against the instance being reused
+        self._with_safe = False  # Protects against the instance being reused
         if e_type is None:
             # Data has been read successfully and we update the parent DataSource with
             # the current cursor location before this Cursor is discarded.
-            if self.__parent is not None:
+            if self._parent is not None:
                 if (
-                    self.__parent.__addr_type == AddrType.BYTE
-                    and (self.__cursor - self.__base) % 8
+                    self._parent._addr_type == AddrType.BYTE
+                    and (self._cursor - self._base) % 8
                 ):
                     raise RuntimeError(
                         "Cannot return non-byte length to bytewise parent"
                     )
-                self.__parent.__cursor = self.__cursor
-                self.__parent.__has_child = False
-                self.__parent.trim()
+                self._parent._cursor = self._cursor
+                self._parent._has_child = False
+                self._parent.trim()
             return True
         if issubclass(e_type, fbe.FBError):
-            if self.__revertible:
-                if self.__parent is not None:
-                    self.__parent.__has_child = False
+            if self._revertible:
+                if self._parent is not None:
+                    self._parent._has_child = False
                 return True
         raise

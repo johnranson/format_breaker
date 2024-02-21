@@ -105,12 +105,12 @@ class TestDataSource:
                 _ = child.read_bits(DATA_BUFFER_SIZE + 7)
                 assert child._bufferer.lower_bound == 0
                 assert child._bufferer.upper_bound == DATA_BUFFER_SIZE * 3
-                assert child._DataSource__cursor == DATA_BUFFER_SIZE * 2 + 8
+                assert child._cursor == DATA_BUFFER_SIZE * 2 + 8
                 raise FBError
 
             assert data._bufferer.lower_bound == 0
             assert data._bufferer.upper_bound == DATA_BUFFER_SIZE * 3
-            assert data._DataSource__cursor == 0
+            assert data._cursor == 0
 
             with data.make_child(revertible=True) as child:
                 _ = child.read_bits(DATA_BUFFER_SIZE)
@@ -118,11 +118,11 @@ class TestDataSource:
                 _ = child.read_bits(DATA_BUFFER_SIZE + 7)
                 assert child._bufferer.lower_bound == 0
                 assert child._bufferer.upper_bound == DATA_BUFFER_SIZE * 3
-                assert child._DataSource__cursor == DATA_BUFFER_SIZE * 2 + 8
+                assert child._cursor == DATA_BUFFER_SIZE * 2 + 8
 
             assert data._bufferer.lower_bound == DATA_BUFFER_SIZE * 2
             assert data._bufferer.upper_bound == DATA_BUFFER_SIZE * 3
-            assert data._DataSource__cursor == DATA_BUFFER_SIZE * 2 + 8
+            assert data._cursor == DATA_BUFFER_SIZE * 2 + 8
 
     def test_buffers_added_and_trimmed_reading_large_length_with_revertible(self):
         with DataSource(BytesIO(src_data)) as data:
@@ -133,38 +133,38 @@ class TestDataSource:
                 _ = child.read_bits(DATA_BUFFER_SIZE * 3)
                 assert child._bufferer.lower_bound == 0
                 assert child._bufferer.upper_bound == DATA_BUFFER_SIZE * 3
-                assert child._DataSource__cursor == DATA_BUFFER_SIZE * 3
+                assert child._cursor == DATA_BUFFER_SIZE * 3
                 raise FBError
 
             assert data._bufferer.lower_bound == 0
             assert data._bufferer.upper_bound == DATA_BUFFER_SIZE * 3
-            assert data._DataSource__cursor == 0
+            assert data._cursor == 0
 
             with data.make_child(revertible=True) as child:
                 _ = child.read_bits(DATA_BUFFER_SIZE * 3)
                 assert child._bufferer.lower_bound == 0
                 assert child._bufferer.upper_bound == DATA_BUFFER_SIZE * 3
-                assert child._DataSource__cursor == DATA_BUFFER_SIZE * 3
+                assert child._cursor == DATA_BUFFER_SIZE * 3
 
         assert data._bufferer.lower_bound == DATA_BUFFER_SIZE
         assert data._bufferer.upper_bound == DATA_BUFFER_SIZE * 3
-        assert data._DataSource__cursor == DATA_BUFFER_SIZE * 3
+        assert data._cursor == DATA_BUFFER_SIZE * 3
 
     def test_buffers_with_nested_revertible(self):
         with DataSource(BytesIO(src_data)) as data:
             with data.make_child(revertible=True) as child1:
                 _ = child1.read_bits(DATA_BUFFER_SIZE * 3)
-                assert child1._DataSource__cursor == DATA_BUFFER_SIZE * 3
+                assert child1._cursor == DATA_BUFFER_SIZE * 3
                 with child1.make_child(revertible=True) as child2:
                     # Read past the end
                     _ = child2.read_bits(DATA_BUFFER_SIZE * 3)
-                assert child1._DataSource__cursor == DATA_BUFFER_SIZE * 3
+                assert child1._cursor == DATA_BUFFER_SIZE * 3
                 with child1.make_child(revertible=True) as child3:
                     _ = child3.read_bits(DATA_BUFFER_SIZE)
-                assert child1._DataSource__cursor == DATA_BUFFER_SIZE * 4
+                assert child1._cursor == DATA_BUFFER_SIZE * 4
                 # Read past the end
                 _ = child1.read_bits(DATA_BUFFER_SIZE)
-            assert data._DataSource__cursor == 0
+            assert data._cursor == 0
 
     def test_incorrect_child_management_raises_error(self):
         with DataSource(BytesIO(src_data)) as data:
