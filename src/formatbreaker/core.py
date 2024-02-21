@@ -1,12 +1,13 @@
-"""This module contains the basic Parser and Block (Parser container) code"""
+"""This module contains the basic Parser, Block (Parser container), and Context (Parser
+data storage) code"""
 
 from __future__ import annotations
 from typing import ClassVar, Any, override
 import copy
 import io
+import collections
 from formatbreaker.util import validate_address_or_length
 from formatbreaker.datasource import DataManager, AddrType
-import collections
 
 
 class Parser:
@@ -17,6 +18,7 @@ class Parser:
     __label: str | None
     __address: int | None
     _backup_label: ClassVar[str | None] = None
+    _default_addr_type: ClassVar[AddrType] = AddrType.UNDEFINED
 
     @property
     def _label(self) -> str | None:
@@ -38,13 +40,13 @@ class Parser:
             validate_address_or_length(address)
         self.__address = address
 
-    def __init__(self, label: str | None = None, address: int | None = None) -> None:
+    def __init__(self, label: str | None = None, *, addr: int | None = None) -> None:
         """
         Args:
             label:The key under which to store results during parsing.
-            address: The address in the data which this instance should read from.
+            addr: The address in the data which this instance should read from.
         """
-        self._address = address
+        self._address = addr
         self._label = label
 
     def _parse(self, data: DataManager, context: Context) -> None:
@@ -82,11 +84,11 @@ class Parser:
             A dictionary of field labels and parsed values
         """
         context = Context()
-        with DataManager(src=data) as manager:
+        with DataManager(src=data, addr_type=self._default_addr_type) as manager:
             self._space_and_parse(manager, context)
         return dict(context)
 
-    def __call__(self, label: str | None = None, address: int | None = None) -> Parser:
+    def __call__(self, label: str | None = None, *, addr: int | None = None) -> Parser:
         """Copy the current instance with a new label or address
 
         Args:
@@ -100,8 +102,8 @@ class Parser:
         b = copy.copy(self)
         if label is not None:
             b._label = label
-        if address is not None:
-            b._address = address
+        if addr is not None:
+            b._address = addr
         return b
 
     def _store(
@@ -165,6 +167,9 @@ class Parser:
         """
         return data
 
+    def __mul__(self, qty: int):
+        return tuple([self] * qty)
+
 
 class Block(Parser):
     """A container that holds ordered data fields and provides a mechanism for
@@ -174,12 +179,12 @@ class Block(Parser):
 
     _addr_type: AddrType
     _relative: bool
-    _elements: tuple[Parser, ...]
+    _elements: list[Parser]
     _optional: bool
 
     def __init__(
         self,
-        *args: Parser,
+        *args: Parser | tuple[Parser, ...],
         relative: bool = True,
         addr_type: AddrType | str = AddrType.PARENT,
         optional: bool = False,
@@ -187,15 +192,22 @@ class Block(Parser):
     ) -> None:
         """
         Args:
-            *args: Ordered tuple of the Parsers this Block should hold
+            *args: Parsers this Block should hold, in order. Lists will be unpacked
             relative: If True, addresses for `self.elements` are relative to this Block.
             bitwise: If True, `self.elements` is addressed and parsed bitwise
             **kwargs: Arguments to be passed to the superclass constructor
         """
+        self._elements = []
         if not isinstance(relative, bool):  # type: ignore
             raise TypeError
-        if not all(isinstance(item, Parser) for item in args):  # type: ignore
-            raise TypeError
+        for item in args:
+            if isinstance(item, Parser):
+                self._elements.append(item)
+            else:
+                for subitem in item:
+                    if not isinstance(subitem, Parser):
+                        raise TypeError
+                    self._elements.append(subitem)
         if isinstance(addr_type, AddrType):
             self._addr_type = addr_type
         else:
@@ -203,7 +215,6 @@ class Block(Parser):
 
         self._relative = relative
         self._optional = optional
-        self._elements = args
 
         super().__init__(**kwargs)
 
@@ -240,6 +251,21 @@ class Block(Parser):
                 self._store(context, dict(out_context))
             else:
                 out_context.update_ext()
+
+    @override
+    def parse(self, data: bytes | io.BufferedIOBase) -> dict[str, Any]:
+        """Parse the provided data from the beginning
+
+        Args:
+            data: Data being parsed
+
+        Returns:
+            A dictionary of field labels and parsed values
+        """
+        context = Context()
+        with DataManager(src=data, addr_type=self._addr_type) as manager:
+            self._space_and_parse(manager, context)
+        return dict(context)
 
 
 def Optional(*args: Any, **kwargs: Any) -> Block:  # pylint: disable=invalid-name
@@ -290,10 +316,18 @@ class Context(collections.ChainMap[str, Any]):
             key: _description_
             value: _description_
         """
-        new_key = key
-        i = 1
+        parts = key.split(" ")
+        if parts[-1].isnumeric():
+            base = " ".join(parts[0:-1])
+            i = int(parts[-1])
+            new_key = base + " " + str(i)
+        else:
+            base = key
+            i = 1
+            new_key = key
+
         while new_key in self:
-            new_key = key + " " + str(i)
+            new_key = base + " " + str(i)
             i = i + 1
         super().__setitem__(new_key, value)
 

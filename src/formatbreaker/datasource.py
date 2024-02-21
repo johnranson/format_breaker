@@ -6,12 +6,23 @@ from types import TracebackType
 import io
 import collections
 import bisect
-import enum
+from enum import Enum
 from formatbreaker.bitwisebytes import BitwiseBytes, bitlen
 from formatbreaker.exceptions import FBError, FBNoDataError
 from formatbreaker.util import uptobyte, downtobyte
 
-AddrType = enum.Enum("AddrType", ["BIT", "BYTE", "BYTE_STRICT", "PARENT"])
+
+class AddrType(Enum):
+    """Used to indicate the addressing type of a DataManager instance or a Parser
+    instance
+    """
+
+    BIT = 1
+    BYTE = 2
+    BYTE_STRICT = 3
+    PARENT = 4
+    UNDEFINED = 5
+
 
 DATA_BUFFER_SIZE = 1024 * 8
 
@@ -65,7 +76,9 @@ class DataBuffer:
         """
         return self._bounds[-1]
 
-    def get_data(self, start: int, bit_length: int | None) -> tuple[BitwiseBytes, int]:
+    def get_data(
+        self, start: int, bit_length: int | None = None
+    ) -> tuple[BitwiseBytes, int]:
         """Generates a single `BitwiseBytes` of the address range requested
 
         This method will attempt to read data from `self._stream` if there is not enough
@@ -171,6 +184,8 @@ class DataBuffer:
             self._stream_eof = True
         data_length = bitlen(data)
         self._stream_eof = data_length < read_length
+        if data_length == 0:
+            return 0
         self._bounds.append(self.upper_bound + data_length)
         self._buffers.append(data)
         return data_length
@@ -189,7 +204,7 @@ class DataBuffer:
         assert len(self._bounds) > 1
         # This would imply that we have have no buffers
 
-        while len(self._bounds) > 2 and addr > self._bounds[1]:
+        while len(self._bounds) > 2 and addr >= self._bounds[1]:
             del self._buffers[0]
             del self._bounds[0]
 
@@ -259,10 +274,13 @@ class DataManager:
             revertible: Whether the reads to this AddressManager and its children can
             fail and be reverted
         """
+        if addr_type == AddrType.UNDEFINED:
+            raise ValueError
         self._with_safe = False
         self._revertible = revertible
         self._has_child = False
         self._addr_type = addr_type
+
         if isinstance(src, DataManager):
 
             self._parent = src
@@ -290,7 +308,7 @@ class DataManager:
             if self._cursor % 8:
                 raise FBError("Strict byte addr_type must start on a byte boundary")
 
-        if self._parent and self._parent._addr_type != addr_type and not relative:
+        if self._parent and self._parent._addr_type != self._addr_type and not relative:
             raise RuntimeError("Address type changes must use relative addr_type")
 
     @property

@@ -15,33 +15,33 @@ from formatbreaker.core import Context
 class TestByte:
 
     def test_reads_single_byte(self):
-        assert bt.Byte("name", 0).parse(b"5") == {"name": b"5"}
+        assert bt.Byte("name", addr=0).parse(b"5") == {"name": b"5"}
 
     @pytest.mark.parametrize("bytedata,bytesize", [(b"506", 1)])
     def test_reads_positional_bytes(self, bytedata, bytesize):
-        assert bt.Byte("name", 0).parse(bytedata) == {
+        assert bt.Byte("name", addr=0).parse(bytedata) == {
             "name": bytes(bytedata[0:bytesize])
         }
-        assert bt.Byte("name", bytesize).parse(bytedata)["name"] == bytes(
+        assert bt.Byte("name", addr=bytesize).parse(bytedata)["name"] == bytes(
             bytedata[bytesize : 2 * bytesize]
         )
-        assert bt.Byte("name", 2 * bytesize).parse(bytedata)["name"] == bytes(
+        assert bt.Byte("name", addr=2 * bytesize).parse(bytedata)["name"] == bytes(
             bytedata[2 * bytesize : 3 * bytesize]
         )
 
-        assert bt.Byte(address=0).parse(bytedata) == {
+        assert bt.Byte(addr=0).parse(bytedata) == {
             "Byte_0x0": bytes(bytedata[0:bytesize])
         }
-        assert bt.Byte(address=bytesize).parse(bytedata)[
+        assert bt.Byte(addr=bytesize).parse(bytedata)[
             "Byte_" + hex(bytesize)
         ] == bytes(bytedata[bytesize : 2 * bytesize])
-        assert bt.Byte(address=2 * bytesize).parse(bytedata)[
+        assert bt.Byte(addr=2 * bytesize).parse(bytedata)[
             "Byte_" + hex(bytesize * 2)
         ] == bytes(bytedata[2 * bytesize : 3 * bytesize])
 
     def test_addressed_fails_with_no_byte_avail(self):
         with pytest.raises(FBError):
-            assert bt.Byte("name", 0).parse(b"")
+            assert bt.Byte("name", addr=0).parse(b"")
 
     def test_unaddressed_fails_with_no_byte_avail(self):
         with pytest.raises(FBError):
@@ -49,7 +49,7 @@ class TestByte:
 
     def test_byte_address_out_of_range_raises_error(self):
         with pytest.raises(FBError):
-            assert bt.Byte("name", 3).parse(b"505")
+            assert bt.Byte("name", addr=3).parse(b"505")
 
 
 class TestBytes:
@@ -66,15 +66,15 @@ class TestBytes:
 
     @pytest.mark.parametrize("bytedata,bytesize", [(b"506", 1)])
     def test_reads_positional_bytes(self, bytedata, bytesize):
-        assert bt.Bytes(1, "name", 0).parse(bytedata) == {
+        assert bt.Bytes(1, "name", address=0).parse(bytedata) == {
             "name": bytes(bytedata[0:bytesize])
         }
-        assert bt.Bytes(2, "name", bytesize).parse(bytedata)["name"] == bytes(
+        assert bt.Bytes(2, "name", address=bytesize).parse(bytedata)["name"] == bytes(
             bytedata[bytesize : 3 * bytesize]
         )
-        assert bt.Bytes(1, "name", 2 * bytesize).parse(bytedata)["name"] == bytes(
-            bytedata[2 * bytesize : 3 * bytesize]
-        )
+        assert bt.Bytes(1, "name", address=2 * bytesize).parse(bytedata)[
+            "name"
+        ] == bytes(bytedata[2 * bytesize : 3 * bytesize])
 
         assert bt.Bytes(1, address=0).parse(bytedata) == {
             "Bytes_0x0": bytes(bytedata[0:bytesize])
@@ -88,7 +88,7 @@ class TestBytes:
 
     def test_addressed_fails_with_no_byte_avail(self):
         with pytest.raises(FBError):
-            assert bt.Bytes(1, "name", 0).parse(b"")
+            assert bt.Bytes(1, "name", address=0).parse(b"")
 
     def test_unaddressed_fails_with_no_byte_avail(self):
         with pytest.raises(FBError):
@@ -96,7 +96,7 @@ class TestBytes:
 
     def test_byte_address_out_of_range_raises_error(self):
         with pytest.raises(FBError):
-            assert bt.Bytes(1, "name", 3).parse(b"505")
+            assert bt.Bytes(1, "name", address=3).parse(b"505")
 
 
 class TestVarBytes:
@@ -129,7 +129,9 @@ class TestVarBytes:
 
     @pytest.fixture
     def test_block_address(self):
-        return Block(UInt8("length"), bt.VarBytes("results", 5, source="length"))
+        return Block(
+            UInt8("length"), bt.VarBytes("results", address=5, source="length")
+        )
 
     def test_reads_positional_bytes(self, test_block_address):
         assert test_block_address.parse(b"\x0100005")["results"] == b"5"
@@ -138,7 +140,7 @@ class TestVarBytes:
     def test_block_bitwise(self):
         return Block(
             UInt8("length"),
-            bt.VarBytes("results", 12, source="length"),
+            bt.VarBytes("results", address=12, source="length"),
             bt.PadToAddress(24),
             bitwise=True,
         )
@@ -178,16 +180,10 @@ def test_remnant_bytewise():
     with DataManager(b"123456") as data:
         data.read_bytes(1)
         context = Context()
-        bt.Remnant("name", 1)._parse(data, context)  # pylint: disable=protected-access
+        bt.Remnant("name", addr=1)._parse(
+            data, context
+        )  # pylint: disable=protected-access
         assert dict(context) == {"name": b"23456"}
-
-
-# def test_remnant_bytewise():
-#     data = DataSource(source=b"\xF0")
-#     data.read_bytes(1)
-#     context = Context()
-#     Remnant("name", 1)._parse(data, context)
-#     assert dict(context) == {"name": b"23456"}
 
 
 def test_remant_bitwise():
@@ -195,7 +191,58 @@ def test_remant_bitwise():
         context = Context()
         with data.make_child(addr_type=AddrType.BIT) as new_data:
             new_data.read(1)
-            bt.Remnant("name", 1)._parse(
+            bt.Remnant("name", addr=1)._parse(
                 new_data, context
             )  # pylint: disable=protected-access
         assert dict(context) == {"name": b"\x70"}
+
+
+class TestBit:
+
+    def test_reads_single_bit(self):
+        assert bt.Bit("name", addr=0).parse(b"\xFF") == {"name": True}
+        assert bt.Bit("name", addr=0).parse(b"\x7F") == {"name": False}
+
+    def test_reads_bits(self):
+        bk = Block(bt.Bit("Bit 0") * 8, addr_type=AddrType.BIT)
+        result = bk.parse(b"\x55")
+        assert result == {
+            "Bit 0": False,
+            "Bit 1": True,
+            "Bit 2": False,
+            "Bit 3": True,
+            "Bit 4": False,
+            "Bit 5": True,
+            "Bit 6": False,
+            "Bit 7": True,
+        }
+        result = bk.parse(b"\xAA")
+        assert result == {
+            "Bit 0": True,
+            "Bit 1": False,
+            "Bit 2": True,
+            "Bit 3": False,
+            "Bit 4": True,
+            "Bit 5": False,
+            "Bit 6": True,
+            "Bit 7": False,
+        }
+
+
+class TestBitWord:
+    @pytest.mark.parametrize(
+        "length,offset,result", [(8, 0, 0xFF), (8, 1, 0xFE), (7, 1, 0x7F), (8, 8, 0x00)]
+    )
+    def test_reads_various_lengths_and_offsets(self, length, offset, result):
+        if offset == 0:
+            bk = Block(
+                bt.BitWord(length, "value"),
+                addr_type=AddrType.BIT,
+            )
+        else:
+            bk = Block(
+                bt.BitWord(offset, "ignore"),
+                bt.BitWord(length, "value"),
+                addr_type=AddrType.BIT,
+            )
+        assert bk.parse(b"\xff\0")["value"] == result

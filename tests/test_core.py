@@ -3,12 +3,13 @@
 # pylint: disable=missing-function-docstring
 # pylint: disable=protected-access
 
+import io
 import pytest
-from formatbreaker.core import Parser, Block, Context, _spacer
+from formatbreaker.basictypes import Failure
+from formatbreaker.core import Parser, Block, Context, _spacer, Optional
 from formatbreaker.bitwisebytes import BitwiseBytes
 from formatbreaker.datasource import DataManager
 from formatbreaker.exceptions import FBNoDataError
-import io
 
 
 class TestContext:
@@ -66,18 +67,18 @@ class TestParser:
 
     def test_bad_constructor_types_raise_exceptions(self):
         with pytest.raises(TypeError):
-            Parser("label", "address")  # type: ignore
+            Parser("label", addr="1")  # type: ignore
 
         with pytest.raises(TypeError):
-            Parser(3, 3)  # type: ignore
+            Parser(3, addr=3)  # type: ignore
 
     def test_negative_address_raises_exception(self):
         with pytest.raises(IndexError):
-            Parser("label", -1)
+            Parser("label", addr=-1)
 
     @pytest.fixture
     def labeled_dt(self):
-        return Parser("label", 3)
+        return Parser("label", addr=3)
 
     def test_constructor_with_arguments_saves_label_and_address(self, labeled_dt):
         assert labeled_dt._label == "label"
@@ -195,10 +196,6 @@ class TestBlock:
         with pytest.raises(FBNoDataError):
             sequential_block.parse(b"12")
 
-    def test_non_relative_bitwise_block_parsing_bytewise_data_raises_error(self):
-        with pytest.raises(RuntimeError):
-            Block(relative=False, addr_type="BIT").parse(b"123")
-
     @pytest.fixture
     def bitwise_sequential_block(self):
         return Block(
@@ -218,11 +215,14 @@ class TestBlock:
 
     @pytest.fixture
     def bitwise_sequential_block_length_9(self):
+
         return Block(
-            TestBlock.MockType(3, "foo"),
-            TestBlock.MockType(5, "bar"),
-            TestBlock.MockType(1, "baz"),
-            addr_type="BIT",
+            Block(
+                TestBlock.MockType(3, "foo"),
+                TestBlock.MockType(5, "bar"),
+                TestBlock.MockType(1, "baz"),
+                addr_type="BIT",
+            )
         )
 
     def test_bitwise_block_parsing_bytewise_data_ending_off_byte_boundary_raises_error(
@@ -237,7 +237,7 @@ class TestBlock:
             TestBlock.MockType(3, "foo"),
             TestBlock.MockType(5, "bar"),
             TestBlock.MockType(1, "baz"),
-            TestBlock.MockType(2, "qux", address=10),
+            TestBlock.MockType(2, "qux", addr=10),
         )
 
     def test_block_gets_spacer_with_addressed_elements(self, addressed_block):
@@ -256,10 +256,58 @@ class TestBlock:
         cnk = Block(
             addressed_block,
             addressed_block("label"),
-            addressed_block("label", 40),
-            addressed_block(address=60),
+            addressed_block("label", addr=40),
+            addressed_block(addr=60),
         )
 
+        result = cnk.parse(bytes(range(256)))
+
+        assert result == {
+            "mock_0x0": "foo",
+            "mock_0x3": "bar",
+            "mock_0x8": "baz",
+            "spacer_0x9": b"\t",
+            "mock_0xa": "qux",
+            "label": {
+                "mock_0x0": "foo",
+                "mock_0x3": "bar",
+                "mock_0x8": "baz",
+                "spacer_0x9": b"\x15",
+                "mock_0xa": "qux",
+            },
+            "spacer_0x18-0x27": b"\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f !\"#$%&'",
+            "label 1": {
+                "mock_0x0": "foo",
+                "mock_0x3": "bar",
+                "mock_0x8": "baz",
+                "spacer_0x9": b"1",
+                "mock_0xa": "qux",
+            },
+            "spacer_0x34-0x3b": b"456789:;",
+            "mock_0x0 1": "foo",
+            "mock_0x3 1": "bar",
+            "mock_0x8 1": "baz",
+            "spacer_0x9 1": b"E",
+            "mock_0xa 1": "qux",
+        }
+
+    def test_optional_blocks_work(self, addressed_block):
+        cnk = Block(
+            addressed_block,
+            Optional(
+                addressed_block("opt"),
+                addressed_block("opt", addr=40),
+                Block(
+                    addressed_block(addr=60),
+                    Failure(),
+                    relative=False,
+                ),
+                relative=False,
+            ),
+            addressed_block("label"),
+            addressed_block("label", addr=40),
+            addressed_block(addr=60),
+        )
         result = cnk.parse(bytes(range(256)))
 
         assert result == {

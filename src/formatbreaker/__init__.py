@@ -1,5 +1,6 @@
+"""A package for parsing binary data"""
 from formatbreaker.exceptions import FBError, FBNoDataError
-from formatbreaker.core import Parser, Block, Optional, Context
+from formatbreaker.core import Parser, Block, Optional
 from formatbreaker.basictypes import (
     Byte,
     Bytes,
@@ -17,7 +18,6 @@ __all__ = [
     "Parser",
     "Block",
     "Optional",
-    "Context",
     "Byte",
     "Bytes",
     "VarBytes",

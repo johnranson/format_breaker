@@ -6,17 +6,26 @@ by only implementing __init__ and _decode, it should not go here.
 """
 
 from __future__ import annotations
-from typing import Any, override
+from typing import override
 from formatbreaker.core import Parser, Context
-from formatbreaker.datasource import DataManager
+from formatbreaker.datasource import DataManager, AddrType
+from formatbreaker.exceptions import FBError
 from formatbreaker.util import validate_address_or_length
 from formatbreaker.bitwisebytes import BitwiseBytes
+
+
+class Failure(Parser):
+    """Always raises an FBError when parsing"""
+
+    def _parse(self, data: DataManager, context: Context) -> None:
+        raise FBError
 
 
 class Byte(Parser):
     """Reads a single byte from the data"""
 
     _backup_label = "Byte"
+    _default_addr_type = AddrType.BYTE
 
     @override
     def _parse(self, data: DataManager, context: Context) -> None:
@@ -38,9 +47,12 @@ class Bytes(Parser):
     """Reads a number of bytes from the data"""
 
     _backup_label = "Bytes"
+    _default_addr_type = AddrType.BYTE
 
     @override
-    def __init__(self, byte_length: int, *args: Any, **kwargs: Any) -> None:
+    def __init__(
+        self, byte_length: int, label: str | None = None, *, address: int | None = None
+    ) -> None:
         """
         Args:
             byte_length:The length to read in bytes, when parsing.
@@ -48,7 +60,7 @@ class Bytes(Parser):
         """
         validate_address_or_length(byte_length, 1)
         self._byte_length = byte_length
-        super().__init__(*args, **kwargs)
+        super().__init__(label, addr=address)
 
     @override
     def _parse(self, data: DataManager, context: Context) -> None:
@@ -72,9 +84,12 @@ class VarBytes(Parser):
     defined by another field in the data"""
 
     _backup_label = "VarBytes"
+    _default_addr_type = AddrType.BYTE
 
     @override
-    def __init__(self, *args: Any, source: str, **kwargs: Any) -> None:
+    def __init__(
+        self, label: str | None = None, *, address: int | None = None, source: str
+    ) -> None:  # source is keyword-only to avoid ambiguity with label
         """
         Args:
             length_key: The key to read from the context to get the number of
@@ -84,7 +99,7 @@ class VarBytes(Parser):
         if not isinstance(source, str):  # type: ignore
             raise TypeError
         self._length_key = source
-        super().__init__(*args, **kwargs)
+        super().__init__(label, addr=address)
 
     @override
     def _parse(self, data: DataManager, context: Context) -> None:
@@ -111,6 +126,8 @@ class VarBytes(Parser):
 class PadToAddress(Parser):
     """Generates a spacer during parsing to a specific address"""
 
+    _default_addr_type = AddrType.BYTE
+
     def __call__(self, name: str | None = None, address: int | None = None) -> Parser:
         raise NotImplementedError
 
@@ -120,13 +137,14 @@ class PadToAddress(Parser):
         Args:
             address: The address up to which to read
         """
-        super().__init__(address=address)
+        super().__init__(addr=address)
 
 
 class Remnant(Parser):
     """Reads all remainging bytes in the data"""
 
     _backup_label = "Remnant"
+    _default_addr_type = AddrType.BYTE
 
     @override
     def _parse(self, data: DataManager, context: Context) -> None:
@@ -152,6 +170,7 @@ class Bit(Parser):
     """Reads a single byte from the data"""
 
     _backup_label = "Bit"
+    _default_addr_type = AddrType.BIT
 
     @override
     def _parse(self, data: DataManager, context: Context) -> None:
@@ -169,7 +188,7 @@ class Bit(Parser):
         """
         addr = data.address
 
-        result = data.read_bits(1)
+        result = data.read_bits(1)[0]
 
         self._store(context, result, addr)
 
@@ -179,9 +198,12 @@ class BitWord(Parser):
 
     _bit_length: int
     _backup_label = "BitWord"
+    _default_addr_type = AddrType.BIT
 
     @override
-    def __init__(self, bit_length: int, *args: Any, **kwargs: Any) -> None:
+    def __init__(
+        self, bit_length: int, label: str | None = None, *, address: int | None = None
+    ) -> None:
         """
         Args:
             bit_length: The length to read in bits, when parsing.
@@ -189,7 +211,7 @@ class BitWord(Parser):
         """
         validate_address_or_length(bit_length, 1)
         self._bit_length = bit_length
-        super().__init__(*args, **kwargs)
+        super().__init__(label, addr=address)
 
     @override
     def _parse(self, data: DataManager, context: Context) -> None:

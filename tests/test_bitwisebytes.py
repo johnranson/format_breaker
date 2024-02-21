@@ -4,7 +4,7 @@
 # pylint: disable=protected-access
 
 import pytest
-from formatbreaker.bitwisebytes import BitwiseBytes
+from formatbreaker.bitwisebytes import BitwiseBytes, bitlen
 
 src_data = bytes(range(256)) * 16
 
@@ -145,3 +145,10 @@ class TestBitwiseBytes:
         assert len(empty_bb) == 0
         assert bytes(empty_bb) == b""
         assert not empty_bb.to_bools()
+
+
+def test_bitlen():
+    assert bitlen(b"22") == 16
+    assert bitlen(BitwiseBytes(b"22")) == 16
+    with pytest.raises(NotImplementedError):
+        _ = bitlen("22")  # type: ignore
