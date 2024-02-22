@@ -14,14 +14,17 @@ from formatbreaker.util import validate_address_or_length
 from formatbreaker.bitwisebytes import BitwiseBytes
 
 
-class Failure(Parser):
+class FailureParser(Parser):
     """Always raises an FBError when parsing"""
 
     def _parse(self, data: DataManager, context: Context) -> None:
         raise FBError
 
 
-class Byte(Parser):
+Failure = FailureParser()
+
+
+class ByteParser(Parser):
     """Reads a single byte from the data"""
 
     _backup_label = "Byte"
@@ -43,6 +46,9 @@ class Byte(Parser):
         self._store(context, result, addr)
 
 
+Byte = ByteParser()
+
+
 class Bytes(Parser):
     """Reads a number of bytes from the data"""
 
@@ -60,7 +66,7 @@ class Bytes(Parser):
         """
         validate_address_or_length(byte_length, 1)
         self._byte_length = byte_length
-        super().__init__(label, addr=addr)
+        super().__init__()
 
     @override
     def _parse(self, data: DataManager, context: Context) -> None:
@@ -88,7 +94,7 @@ class VarBytes(Parser):
 
     @override
     def __init__(
-        self, label: str | None = None, *, addr: int | None = None, source: str
+        self, *, source: str
     ) -> None:  # source is keyword-only to avoid ambiguity with label
         """
         Args:
@@ -99,7 +105,7 @@ class VarBytes(Parser):
         if not isinstance(source, str):  # type: ignore
             raise TypeError
         self._length_key = source
-        super().__init__(label, addr=addr)
+        super().__init__()
 
     @override
     def _parse(self, data: DataManager, context: Context) -> None:
@@ -137,10 +143,11 @@ class PadToAddress(Parser):
         Args:
             addr: The address up to which to read
         """
-        super().__init__(addr=addr)
+        super().__init__()
+        self._address = addr
 
 
-class Remnant(Parser):
+class RemnantParser(Parser):
     """Reads all remainging bytes in the data"""
 
     _backup_label = "Remnant"
@@ -164,9 +171,11 @@ class Remnant(Parser):
         result = data.read_bytes()
 
         self._store(context, result, addr)
+        
+Remnant = RemnantParser()
 
 
-class Bit(Parser):
+class BitParser(Parser):
     """Reads a single byte from the data"""
 
     _backup_label = "Bit"
@@ -193,6 +202,9 @@ class Bit(Parser):
         self._store(context, result, addr)
 
 
+Bit = BitParser()
+
+
 class BitWord(Parser):
     """Reads a number of bits from the data"""
 
@@ -211,7 +223,7 @@ class BitWord(Parser):
         """
         validate_address_or_length(bit_length, 1)
         self._bit_length = bit_length
-        super().__init__(label, addr=addr)
+        super().__init__()
 
     @override
     def _parse(self, data: DataManager, context: Context) -> None:

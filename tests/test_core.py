@@ -67,18 +67,18 @@ class TestParser:
 
     def test_bad_constructor_types_raise_exceptions(self):
         with pytest.raises(TypeError):
-            Parser("label", addr="1")  # type: ignore
+            Parser()("label", addr="1")  # type: ignore
 
         with pytest.raises(TypeError):
-            Parser(3, addr=3)  # type: ignore
+            Parser()(3, addr=3)  # type: ignore
 
     def test_negative_address_raises_exception(self):
         with pytest.raises(IndexError):
-            Parser("label", addr=-1)
+            Parser()("label", addr=-1)
 
     @pytest.fixture
     def labeled_dt(self):
-        return Parser("label", addr=3)
+        return Parser()("label", addr=3)
 
     def test_constructor_with_arguments_saves_label_and_address(self, labeled_dt):
         assert labeled_dt._label == "label"
@@ -144,10 +144,10 @@ class TestBlock:
     class MockType(Parser):
         _backup_label = "mock"
 
-        def __init__(self, length=None, value=None, **kwargs) -> None:
+        def __init__(self, length=None, value=None) -> None:
             self.value = value
             self.length = length
-            super().__init__(**kwargs)
+            super().__init__()
 
         def _parse(self, data, context):
             addr = data.address
@@ -237,7 +237,7 @@ class TestBlock:
             TestBlock.MockType(3, "foo"),
             TestBlock.MockType(5, "bar"),
             TestBlock.MockType(1, "baz"),
-            TestBlock.MockType(2, "qux", addr=10),
+            TestBlock.MockType(2, "qux")(addr=10),
         )
 
     def test_block_gets_spacer_with_addressed_elements(self, addressed_block):
@@ -299,7 +299,7 @@ class TestBlock:
                 addressed_block("opt", addr=40),
                 Block(
                     addressed_block(addr=60),
-                    Failure(),
+                    Failure,
                     relative=False,
                 ),
                 relative=False,

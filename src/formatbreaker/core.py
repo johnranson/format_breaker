@@ -40,14 +40,9 @@ class Parser:
             validate_address_or_length(address)
         self.__address = address
 
-    def __init__(self, label: str | None = None, *, addr: int | None = None) -> None:
-        """
-        Args:
-            label:The key under which to store results during parsing.
-            addr: The address in the data which this instance should read from.
-        """
-        self._address = addr
-        self._label = label
+    def __init__(self) -> None:
+        self._address = None
+        self._label = None
 
     def _parse(self, data: DataManager, context: Context) -> None:
         """Parses data into a dictionary
@@ -168,7 +163,7 @@ class Parser:
         return data
 
     def __mul__(self, qty: int):
-        return tuple([self] * qty)
+        return Block(*([self] * qty))
 
 
 class Block(Parser):
@@ -179,16 +174,15 @@ class Block(Parser):
 
     _addr_type: AddrType
     _relative: bool
-    _elements: list[Parser]
+    _elements: tuple[Parser, ...]
     _optional: bool
 
     def __init__(
         self,
-        *args: Parser | tuple[Parser, ...],
+        *args: Parser,
         relative: bool = True,
         addr_type: AddrType | str = AddrType.PARENT,
-        optional: bool = False,
-        **kwargs: Any,
+        optional: bool = False
     ) -> None:
         """
         Args:
@@ -197,26 +191,21 @@ class Block(Parser):
             bitwise: If True, `self.elements` is addressed and parsed bitwise
             **kwargs: Arguments to be passed to the superclass constructor
         """
-        self._elements = []
         if not isinstance(relative, bool):  # type: ignore
             raise TypeError
-        for item in args:
-            if isinstance(item, Parser):
-                self._elements.append(item)
-            else:
-                for subitem in item:
-                    if not isinstance(subitem, Parser):
-                        raise TypeError
-                    self._elements.append(subitem)
+        if not all(isinstance(item, Parser) for item in args):  # type: ignore
+            raise TypeError
         if isinstance(addr_type, AddrType):
             self._addr_type = addr_type
         else:
             self._addr_type = AddrType[addr_type]
 
+        self._elements = args
+
         self._relative = relative
         self._optional = optional
 
-        super().__init__(**kwargs)
+        super().__init__()
 
     @override
     def _parse(

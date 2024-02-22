@@ -8,12 +8,12 @@ from __future__ import annotations
 from typing import override
 import struct
 import uuid
-from formatbreaker.basictypes import Byte, Bytes, BitWord, Bit
+from formatbreaker.basictypes import ByteParser, Bytes, BitWord, BitParser
 from formatbreaker.exceptions import FBError
 from formatbreaker.bitwisebytes import BitwiseBytes
 
 
-class ByteFlag(Byte):
+class ByteFlag(ByteParser):
     """Reads 1 byte as a boolean"""
 
     _true_value: int | None
@@ -31,7 +31,6 @@ class ByteFlag(Byte):
         Args:
             true_value: The only value which the parser will interpret as True, if
                 defined.
-            **kwargs: Arguments to be passed to the superclass constructor
         """
         if isinstance(true_value, bytes):
             if len(true_value) != 1:
@@ -48,7 +47,7 @@ class ByteFlag(Byte):
         if true_value == 0:
             raise ValueError
 
-        super().__init__(label, addr=addr)
+        super().__init__()
 
     @override
     def _decode(self, data: bytes) -> bool:
@@ -60,23 +59,34 @@ class ByteFlag(Byte):
         return True
 
 
-class BitConst(Bit):
-    """Fails parsing if a bit doesn't match a constant value"""
+class BitOneParser(BitParser):
+    """Fails parsing if a bit isn't 1"""
 
     _backup_label = "Const"
 
     @override
-    def __init__(
-        self, value: bool, label: str | None = None, *, addr: int | None = None
-    ) -> None:
-        self._value = bool(value)
-        super().__init__(label, addr=addr)
+    def _decode(self, data: bool) -> bool:
+        if not super()._decode(data):
+            raise FBError("Constant not matched")
+        return True
+
+
+BitOne = BitOneParser()
+
+
+class BitZeroParser(BitParser):
+    """Fails parsing if a bit isn't 0"""
+
+    _backup_label = "Const"
 
     @override
     def _decode(self, data: bool) -> bool:
-        if self._value != super()._decode(data):
+        if super()._decode(data):
             raise FBError("Constant not matched")
-        return self._value
+        return False
+
+
+BitZero = BitZeroParser()
 
 
 class BitWordConst(BitWord):
@@ -123,7 +133,7 @@ class BitFlags(BitWord):
         return data.to_bools()
 
 
-class Int32L(Bytes):
+class Int32LParser(Bytes):
     """Reads 4 bytes as a signed, little endian integer"""
 
     _backup_label = "Int32"
@@ -145,7 +155,10 @@ class Int32L(Bytes):
         return int.from_bytes(data, "little", signed=True)
 
 
-class UInt32L(Bytes):
+Int32L = Int32LParser()
+
+
+class UInt32LParser(Bytes):
     """Reads 4 bytes as a unsigned, little endian integer"""
 
     _backup_label = "UInt32"
@@ -167,7 +180,10 @@ class UInt32L(Bytes):
         return int.from_bytes(data, "little", signed=False)
 
 
-class Int16L(Bytes):
+UInt32L = UInt32LParser()
+
+
+class Int16LParser(Bytes):
     """Reads 2 bytes as a signed, little endian integer"""
 
     _backup_label = "Int16"
@@ -189,7 +205,10 @@ class Int16L(Bytes):
         return int.from_bytes(data, "little", signed=True)
 
 
-class UInt16L(Bytes):
+Int16L = Int16LParser()
+
+
+class UInt16LParser(Bytes):
     """Reads 2 bytes as a unsigned, little endian integer"""
 
     _backup_label = "UInt16"
@@ -211,7 +230,10 @@ class UInt16L(Bytes):
         return int.from_bytes(data, "little", signed=False)
 
 
-class Int8(Byte):
+UInt16L = UInt16LParser()
+
+
+class Int8Parser(ByteParser):
     """Reads 1 byte as a signed integer"""
 
     _backup_label = "Int8"
@@ -229,7 +251,10 @@ class Int8(Byte):
         return int.from_bytes(data, "little", signed=True)
 
 
-class UInt8(Byte):
+Int8 = Int8Parser()
+
+
+class UInt8Parser(ByteParser):
     """Reads 1 byte as an unsigned integer"""
 
     _backup_label = "UInt8"
@@ -247,13 +272,20 @@ class UInt8(Byte):
         return int.from_bytes(data, "little", signed=False)
 
 
-class Float32L(Bytes):
+UInt8 = UInt8Parser()
+
+
+class Float32LParser(Bytes):
     """Reads 4 bytes as a little endian single precision float"""
 
     _backup_label = "Float32"
 
     @override
     def __init__(self, label: str | None = None, *, addr: int | None = None) -> None:
+        super().__init__(4, label, addr=addr)
+
+    @override
+    def _decode(self, data: bytes) -> float:
         """Decodes a single precision floating point number from little endian
         bytes.
 
@@ -264,15 +296,13 @@ class Float32L(Bytes):
         Returns:
             The decoded number
         """
-
-        super().__init__(4, label, addr=addr)
-
-    @override
-    def _decode(self, data: bytes) -> float:
         return struct.unpack("<f", data)[0]
 
 
-class Float64L(Bytes):
+Float32L = Float32LParser()
+
+
+class Float64LParser(Bytes):
     """Reads 8 bytes as a little endian double precision float"""
 
     _backup_label = "Float64"
@@ -297,7 +327,10 @@ class Float64L(Bytes):
         return struct.unpack("<d", data)[0]
 
 
-class UuidL(Bytes):
+Float64L = Float64LParser()
+
+
+class UuidLParser(Bytes):
     """Reads 16 bytes as a UUID (Little Endian words)"""
 
     _backup_label = "UUID"
@@ -319,7 +352,10 @@ class UuidL(Bytes):
         return uuid.UUID(bytes_le=data)
 
 
-class UuidB(Bytes):
+UuidL = UuidLParser()
+
+
+class UuidBParser(Bytes):
     """Reads 16 bytes as a UUID (Big Endian words)"""
 
     _backup_label = "UUID"
@@ -339,3 +375,6 @@ class UuidB(Bytes):
             The decoded UUID
         """
         return uuid.UUID(bytes=data)
+
+
+UuidB = UuidBParser()
