@@ -83,24 +83,6 @@ class Parser:
             self._space_and_parse(manager, context)
         return dict(context)
 
-    def __call__(self, label: str | None = None, *, addr: int | None = None) -> Parser:
-        """Copy the current instance with a new label or address
-
-        Args:
-            label: Replacement label, if defined
-            address: Replacement address, if defined
-
-        Returns:
-            A copy of the existing object with the label and address changed.
-        """
-
-        b = copy.copy(self)
-        if label is not None:
-            b._label = label
-        if addr is not None:
-            b._address = addr
-        return b
-
     def _store(
         self,
         context: Context,
@@ -162,27 +144,44 @@ class Parser:
         """
         return data
 
-    def __mul__(self, qty: int):
-        return Block(*([self] * qty))
-
+    def __getitem__(self, qty: int):
+        validate_address_or_length(qty)
+        return Repeat(qty)(self)
+    
+    def __matmul__(self, addr: int):
+        b = copy.copy(self)
+        validate_address_or_length(addr)
+        b._address = addr
+        return b
+    
+    def __rshift__(self, label: str):
+        if not isinstance(label, str):   # type: ignore
+            raise TypeError
+        b = copy.copy(self)
+        b._label = label
+        return b
+        
+        
 
 class Block(Parser):
     """A container that holds ordered data fields and provides a mechanism for
     parsing them in order"""
 
-    __slots__ = ("_addr_type", "_relative", "_elements", "_optional")
+    __slots__ = ("_addr_type", "_relative", "_elements", "_optional", "_repeat")
 
     _addr_type: AddrType
     _relative: bool
     _elements: tuple[Parser, ...]
     _optional: bool
+    _repeat: int | str
 
     def __init__(
         self,
         *args: Parser,
         relative: bool = True,
         addr_type: AddrType | str = AddrType.PARENT,
-        optional: bool = False
+        optional: bool = False,
+        repeat_qty: int | str = 1
     ) -> None:
         """
         Args:
@@ -199,6 +198,11 @@ class Block(Parser):
             self._addr_type = addr_type
         else:
             self._addr_type = AddrType[addr_type]
+
+        if isinstance(repeat_qty, int) | isinstance(repeat_qty, str):
+            self._repeat = repeat_qty
+        else:
+            raise TypeError
 
         self._elements = args
 
@@ -227,19 +231,26 @@ class Block(Parser):
             addr_type=self._addr_type,
             revertible=self._optional,
         ) as new_data:
-            if self._label:
-                out_context = Context()
+            if isinstance(self._repeat, str):
+                reps = context[self._repeat]
+                if not isinstance(reps, int):
+                    raise ValueError
             else:
-                out_context = context.new_child()
+                reps = self._repeat
+            for _ in range(reps):
+                if self._label:
+                    out_context = Context()
+                else:
+                    out_context = context.new_child()
 
-            for element in self._elements:
-                element._space_and_parse(  # pylint: disable=protected-access
-                    new_data, out_context
-                )
-            if self._label:
-                self._store(context, dict(out_context))
-            else:
-                out_context.update_ext()
+                for element in self._elements:
+                    element._space_and_parse(  # pylint: disable=protected-access
+                        new_data, out_context
+                    )
+                if self._label:
+                    self._store(context, dict(out_context))
+                else:
+                    out_context.update_ext()
 
     @override
     def parse(self, data: bytes | io.BufferedIOBase) -> dict[str, Any]:
@@ -266,6 +277,16 @@ def Optional(*args: Any, **kwargs: Any) -> Block:  # pylint: disable=invalid-nam
         An optional `Block`
     """
     return Block(*args, optional=True, **kwargs)
+
+def Repeat(repeat_qty: int|str):
+    """Shorthand for generating a repeated `Block`.
+
+    Takes the same arguments as a `Block`.
+
+    Returns:
+        An optional `Block`
+    """
+    return lambda *args, **kwargs: Block(*args, repeat_qty=repeat_qty, **kwargs)    
 
 
 def _spacer(

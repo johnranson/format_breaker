@@ -49,7 +49,7 @@ class TestParser:
     def context(self):
         return Context()
 
-    def test_constructor_defaults_to_no_label_and_address(self, default_dt, context):
+    def test_constructor_defaults_to_no_label_and_address(self, default_dt: Parser, context: Context):
 
         assert default_dt._label is None
         assert default_dt._address is None
@@ -57,43 +57,29 @@ class TestParser:
         with pytest.raises(RuntimeError):
             default_dt._store(context, "123")
 
-    def test_copy_works_after_default_constructor(self, default_dt):
-
-        copy_test_type = default_dt()
-
-        assert copy_test_type is not default_dt
-        assert copy_test_type._label is None
-        assert copy_test_type._address is None
-
     def test_bad_constructor_types_raise_exceptions(self):
         with pytest.raises(TypeError):
-            Parser()("label", addr="1")  # type: ignore
+            _ = Parser() @ "1" >> "label"  # type: ignore
 
         with pytest.raises(TypeError):
-            Parser()(3, addr=3)  # type: ignore
+            _ = Parser() @ 3 >> 3  # type: ignore
 
     def test_negative_address_raises_exception(self):
         with pytest.raises(IndexError):
-            Parser()("label", addr=-1)
+            _ = Parser() @ -1 >> "label"
 
     @pytest.fixture
     def labeled_dt(self):
-        return Parser()("label", addr=3)
+        return Parser() @ 3 >> "label"
 
-    def test_constructor_with_arguments_saves_label_and_address(self, labeled_dt):
+    def test_constructor_with_arguments_saves_label_and_address(self, labeled_dt: Parser):
         assert labeled_dt._label == "label"
         assert labeled_dt._address == 3
         assert labeled_dt._decode("123") == "123"
 
-    def test_copy_works_after_constructor_with_label_and_address(self, labeled_dt):
-        copy_test_type = labeled_dt()
-
-        assert copy_test_type is not labeled_dt
-        assert copy_test_type._label == "label"
-        assert copy_test_type._address == 3
 
     def test_repeated_storing_and_updating_produces_expected_dictionary(
-        self, labeled_dt, context
+        self, labeled_dt: Parser, context: Context
     ):
         labeled_dt._store(context, "123")
         labeled_dt._store(context, "456")
@@ -237,7 +223,7 @@ class TestBlock:
             TestBlock.MockType(3, "foo"),
             TestBlock.MockType(5, "bar"),
             TestBlock.MockType(1, "baz"),
-            TestBlock.MockType(2, "qux")(addr=10),
+            TestBlock.MockType(2, "qux") @ 10,
         )
 
     def test_block_gets_spacer_with_addressed_elements(self, addressed_block):
@@ -255,9 +241,9 @@ class TestBlock:
     def test_nested_blocks_produce_expected_results(self, addressed_block):
         cnk = Block(
             addressed_block,
-            addressed_block("label"),
-            addressed_block("label", addr=40),
-            addressed_block(addr=60),
+            addressed_block >> "label",
+            addressed_block @ 40 >> "label",
+            addressed_block @ 60,
         )
 
         result = cnk.parse(bytes(range(256)))
@@ -291,22 +277,22 @@ class TestBlock:
             "mock_0xa 1": "qux",
         }
 
-    def test_optional_blocks_work(self, addressed_block):
+    def test_optional_blocks_work(self, addressed_block: Block):
         cnk = Block(
             addressed_block,
             Optional(
-                addressed_block("opt"),
-                addressed_block("opt", addr=40),
+                addressed_block >> "opt",
+                addressed_block @ 40 >> "opt",
                 Block(
-                    addressed_block(addr=60),
+                    addressed_block @ 60,
                     Failure,
                     relative=False,
                 ),
                 relative=False,
             ),
-            addressed_block("label"),
-            addressed_block("label", addr=40),
-            addressed_block(addr=60),
+            addressed_block >> "label",
+            addressed_block @ 40 >> "label",
+            addressed_block @ 60,
         )
         result = cnk.parse(bytes(range(256)))
 
