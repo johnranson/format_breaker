@@ -16,7 +16,7 @@ def test_byte_flag():
     for val in range(1, 256):
         assert par.parse(bytes([val]))["Flag_0x0"]
 
-    par = fd.ByteFlag(1)
+    par = fd.ByteFlag(b"\x01")
     assert not par.parse(b"\0")["Flag_0x0"]
     assert par.parse(bytes([1]))["Flag_0x0"]
     for val in range(2, 256):

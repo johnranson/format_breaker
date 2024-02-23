@@ -1,4 +1,4 @@
-"""Decoding Parsers
+"""Decoding and Translating Parsers
 
 The classes in this module add functionality to existing parsers by adding
 `_decode()` logic. They only implement _decode (and _init, if needed.)
@@ -8,53 +8,33 @@ from __future__ import annotations
 from typing import override, Any
 import struct
 import uuid
-from formatbreaker.basictypes import ByteParser, Byte, Bytes, BitWord, Bit
-from formatbreaker.core import Translator, Parser
+from formatbreaker.basictypes import Byte, Bytes, BitWord, Bit
+from formatbreaker.core import Translator, Parser, make_translator
 from formatbreaker.exceptions import FBError
 from formatbreaker.bitwisebytes import BitwiseBytes
 
 
-class ByteFlag(ByteParser):
-    """Reads 1 byte as a boolean"""
+class ByteFlag(Translator):
+    """Reads as a boolean"""
 
     _true_value: int | None
-    _default_backup_label = "Flag"
 
-    @override
-    def __init__(
-        self,
-        true_value: bytes | int | None = None,
-    ) -> None:
-        """
-        Args:
-            true_value: The only value which the parser will interpret as True, if
-                defined.
-        """
-        if isinstance(true_value, bytes):
-            if len(true_value) != 1:
-                raise ValueError
-            self._true_value = true_value[0]
-        elif isinstance(true_value, int):
-            self._true_value = true_value
-            if self._true_value < 0 or self._true_value > 255:
-                raise ValueError
-        elif true_value is None:
-            self._true_value = None
-        else:
-            raise TypeError
-        if true_value == 0:
+    def __init__(self, true_value: Any = None, false_value: Any = b"\0") -> None:
+        if true_value == false_value:
             raise ValueError
-
-        super().__init__()
+        super().__init__(Byte, "Flag")
+        self._true_value = true_value
+        self._false_value = false_value
 
     @override
-    def _decode(self, data: bytes) -> bool:
-        if not data[0]:
+    def _translate(self, data: Any) -> bool:
+        if data == self._false_value:
             return False
-        if self._true_value:
-            if data[0] != self._true_value:
-                raise FBError("Value to decode is not '0' or self._true_value")
-        return True
+        if self._true_value is None:
+            return True
+        if data == self._true_value:
+            return True
+        raise FBError()
 
 
 class Const(Translator):
@@ -64,9 +44,10 @@ class Const(Translator):
 
     @override
     def _translate(self, data: Any) -> Any:
-        if self._value != data:
+        decoded_data = self._parsable._decode(data)
+        if self._value != decoded_data:
             raise FBError("Constant not matched")
-        return data
+        return decoded_data
 
 
 def make_const(parser: Parser):
@@ -81,7 +62,6 @@ BitZero = Const(Bit, False)
 
 ByteConst = make_const(Byte)
 
-
 def BytesConst(data: bytes):
     Const(Bytes(len(data)), data)
 
@@ -93,14 +73,12 @@ def BitWordConst(value: BitwiseBytes | bytes | int, bit_length: int | None = Non
             bit_length = len(value)
     elif isinstance(value, bytes):  # type: ignore
         v = int(BitwiseBytes(value, 0, bit_length))
-        if bit_length is None:
-            raise ValueError
     elif isinstance(value, int):  # type: ignore
         v = value
-        if bit_length is None:
-            raise ValueError
     else:
         raise TypeError
+    if bit_length is None:
+        raise ValueError
     return Const(BitWord(bit_length), v)
 
 
@@ -111,7 +89,6 @@ class BitFlags(BitWord):
 
     @override
     def _decode(self, data: BitwiseBytes) -> list[bool]:  # type: ignore[override]
-        # The _decode
         return data.to_bools()
 
 
@@ -151,51 +128,5 @@ Float32L = DeStructor("<f", "Float32")
 Float64L = DeStructor("<d", "Float64")
 
 
-class UuidLParser(Bytes):
-    """Reads 16 bytes as a UUID (Little Endian words)"""
-
-    _default_backup_label = "UUID"
-
-    @override
-    def __init__(self) -> None:
-        super().__init__(16)
-
-    @override
-    def _decode(self, data: bytes) -> uuid.UUID:
-        """Decodes a UUID with little endian words.
-
-        Args:
-            data: A 16 byte binary UUID with little endian words
-
-        Returns:
-            The decoded UUID
-        """
-        return uuid.UUID(bytes_le=data)
-
-
-UuidL = UuidLParser()
-
-
-class UuidBParser(Bytes):
-    """Reads 16 bytes as a UUID (Big Endian words)"""
-
-    _default_backup_label = "UUID"
-
-    @override
-    def __init__(self) -> None:
-        super().__init__(16)
-
-    @override
-    def _decode(self, data: bytes) -> uuid.UUID:
-        """Decodes a UUID with big endian words.
-
-        Args:
-            data: A 16 byte binary UUID with big endian words
-
-        Returns:
-            The decoded UUID
-        """
-        return uuid.UUID(bytes=data)
-
-
-UuidB = UuidBParser()
+UuidL = make_translator(Bytes(16), lambda data: uuid.UUID(bytes_le=data), "UUID")
+UuidB = make_translator(Bytes(16), lambda data: uuid.UUID(bytes=data), "UUID")

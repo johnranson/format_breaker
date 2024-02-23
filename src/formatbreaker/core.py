@@ -399,7 +399,15 @@ class Translator(Parser):
         return self._parsable._parse(data, context)
 
     def _decode(self, data: Any) -> Any:
-        return self._translate(self._parsable._decode(data))
+        return self._translate(data)
 
     def _translate(self, data: Any) -> Any:
-        return data
+        return self._parsable._decode(data)
+
+
+def make_translator(parser: Parser, func, backup_label=None):
+    class FactoryTranslator(Translator):
+        a = [func]
+        def _translate(self, data: Any) -> Any:
+            return self.a[0](data)
+    return FactoryTranslator(parser, backup_label)
