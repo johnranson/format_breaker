@@ -6,7 +6,7 @@ by only implementing __init__ and _decode, it should not go here.
 """
 
 from __future__ import annotations
-from typing import override
+from typing import override, ClassVar
 from formatbreaker.core import Parser, Context
 from formatbreaker.datasource import DataManager, AddrType
 from formatbreaker.exceptions import FBError
@@ -17,7 +17,7 @@ from formatbreaker.bitwisebytes import BitwiseBytes
 class FailureParser(Parser):
     """Always raises an FBError when parsing"""
 
-    def _parse(self, data: DataManager, context: Context) -> None:
+    def _parse(self, data: DataManager, context: Context) -> BitwiseBytes:
         raise FBError
 
 
@@ -27,11 +27,11 @@ Failure = FailureParser()
 class ByteParser(Parser):
     """Reads a single byte from the data"""
 
-    _backup_label = "Byte"
+    _default_backup_label: ClassVar[str | None] = "Byte"
     _default_addr_type = AddrType.BYTE
 
     @override
-    def _parse(self, data: DataManager, context: Context) -> None:
+    def _parse(self, data: DataManager, context: Context) -> bytes:
         """Reads a single byte from `addr` in `data` and stores the byte in an
         entry in `context`
 
@@ -41,9 +41,7 @@ class ByteParser(Parser):
                 same containing Block
             addr: The bit or byte address in `data` where the byte to be parsed lies.
         """
-        addr = data.address
-        result = data.read_bytes(1)
-        self._store(context, result, addr)
+        return data.read_bytes(1)
 
 
 Byte = ByteParser()
@@ -52,13 +50,11 @@ Byte = ByteParser()
 class Bytes(Parser):
     """Reads a number of bytes from the data"""
 
-    _backup_label = "Bytes"
+    _default_backup_label: ClassVar[str | None] = "Bytes"
     _default_addr_type = AddrType.BYTE
 
     @override
-    def __init__(
-        self, byte_length: int, label: str | None = None, *, addr: int | None = None
-    ) -> None:
+    def __init__(self, byte_length: int) -> None:
         """
         Args:
             byte_length:The length to read in bytes, when parsing.
@@ -69,7 +65,7 @@ class Bytes(Parser):
         super().__init__()
 
     @override
-    def _parse(self, data: DataManager, context: Context) -> None:
+    def _parse(self, data: DataManager, context: Context) -> bytes:
         """Reads `self._byte_length` many bytes from `addr` in `data` and
         stores the bytes in an entry in `context`
 
@@ -80,16 +76,14 @@ class Bytes(Parser):
             addr: The bit or byte address in `data` where the bytes to be parsed lie.
         """
 
-        addr = data.address
-        result = data.read_bytes(self._byte_length)
-        self._store(context, result, addr)
+        return data.read_bytes(self._byte_length)
 
 
 class VarBytes(Parser):
     """Reads a number of bytes from the data with length dynamically
     defined by another field in the data"""
 
-    _backup_label = "VarBytes"
+    _default_backup_label: ClassVar[str | None] = "VarBytes"
     _default_addr_type = AddrType.BYTE
 
     @override
@@ -108,7 +102,7 @@ class VarBytes(Parser):
         super().__init__()
 
     @override
-    def _parse(self, data: DataManager, context: Context) -> None:
+    def _parse(self, data: DataManager, context: Context) -> bytes:
         """Reads `context[self.length_key]` many bytes from `addr` in `data`
         and stores the bytes in an entry in `context`
 
@@ -121,12 +115,10 @@ class VarBytes(Parser):
         Returns:
             The next bit or byte address after the parsed bytes
         """
-        addr = data.address
         length: int = context[self._length_key]
         if not isinstance(length, int):  # type: ignore
             raise ValueError()
-        result = data.read_bytes(length)
-        self._store(context, result, addr)
+        return data.read_bytes(length)
 
 
 class PadToAddress(Parser):
@@ -150,11 +142,11 @@ class PadToAddress(Parser):
 class RemnantParser(Parser):
     """Reads all remainging bytes in the data"""
 
-    _backup_label = "Remnant"
+    _default_backup_label: ClassVar[str | None] = "Remnant"
     _default_addr_type = AddrType.BYTE
 
     @override
-    def _parse(self, data: DataManager, context: Context) -> None:
+    def _parse(self, data: DataManager, context: Context) -> bytes:
         """Reads all data from `addr` to the end of `data` and stores the
         data in an entry in `context`
 
@@ -167,22 +159,22 @@ class RemnantParser(Parser):
         Returns:
             The length of `data`
         """
-        addr = data.address
         result = data.read_bytes()
+        print(result)
+        return result
 
-        self._store(context, result, addr)
-        
+
 Remnant = RemnantParser()
 
 
 class BitParser(Parser):
     """Reads a single byte from the data"""
 
-    _backup_label = "Bit"
+    _default_backup_label: ClassVar[str | None] = "Bit"
     _default_addr_type = AddrType.BIT
 
     @override
-    def _parse(self, data: DataManager, context: Context) -> None:
+    def _parse(self, data: DataManager, context: Context) -> bool:
         """Reads a single bit from `addr` in `data` and stores the bit in an
         entry in `context`
 
@@ -195,11 +187,7 @@ class BitParser(Parser):
         Returns:
             The next bit address after the parsed byte
         """
-        addr = data.address
-
-        result = data.read_bits(1)[0]
-
-        self._store(context, result, addr)
+        return data.read_bits(1)[0]
 
 
 Bit = BitParser()
@@ -209,13 +197,11 @@ class BitWord(Parser):
     """Reads a number of bits from the data"""
 
     _bit_length: int
-    _backup_label = "BitWord"
+    _default_backup_label: ClassVar[str | None] = "BitWord"
     _default_addr_type = AddrType.BIT
 
     @override
-    def __init__(
-        self, bit_length: int, label: str | None = None, *, addr: int | None = None
-    ) -> None:
+    def __init__(self, bit_length: int) -> None:
         """
         Args:
             bit_length: The length to read in bits, when parsing.
@@ -226,7 +212,7 @@ class BitWord(Parser):
         super().__init__()
 
     @override
-    def _parse(self, data: DataManager, context: Context) -> None:
+    def _parse(self, data: DataManager, context: Context) -> BitwiseBytes:
         """Reads `self._bit_length` many bits from `addr` in `data` and
         stores the bits as BitwiseBytes in an entry in `context`
 
@@ -239,9 +225,7 @@ class BitWord(Parser):
         Returns:
             The next bit address after the parsed bits
         """
-        addr = data.address
-        result = data.read_bits(self._bit_length)
-        self._store(context, result, addr=addr)
+        return data.read_bits(self._bit_length)
 
     @override
     def _decode(self, data: BitwiseBytes) -> int:

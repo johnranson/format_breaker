@@ -36,7 +36,7 @@ def test_bit_const():
 
 
 def test_bit_word_const():
-    par = fd.BitWordConst((b"\xFF", 3))
+    par = fd.BitWordConst(b"\xFF", 3)
     assert par.parse(b"\xF0")["Const_0x0"] == 0x07
     with pytest.raises(FBError):
         _ = par.parse(b"\x80")
@@ -58,7 +58,9 @@ def test_bit_flags():
 
 def test_int32l():
     par = fd.Int32L
-    assert par.parse(struct.pack("<i", -76))["Int32_0x0"] == -76
+    result = par.parse(struct.pack("<i", -76))
+    print(result)
+    assert result["Int32_0x0"] == -76
 
 
 def test_int16l():

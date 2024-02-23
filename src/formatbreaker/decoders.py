@@ -5,10 +5,11 @@ The classes in this module add functionality to existing parsers by adding
 """
 
 from __future__ import annotations
-from typing import override
+from typing import override, Any
 import struct
 import uuid
-from formatbreaker.basictypes import ByteParser, Bytes, BitWord, BitParser
+from formatbreaker.basictypes import ByteParser, Byte, Bytes, BitWord, Bit
+from formatbreaker.core import Translator, Parser
 from formatbreaker.exceptions import FBError
 from formatbreaker.bitwisebytes import BitwiseBytes
 
@@ -17,15 +18,12 @@ class ByteFlag(ByteParser):
     """Reads 1 byte as a boolean"""
 
     _true_value: int | None
-    _backup_label = "Flag"
+    _default_backup_label = "Flag"
 
     @override
     def __init__(
         self,
         true_value: bytes | int | None = None,
-        label: str | None = None,
-        *,
-        addr: int | None = None,
     ) -> None:
         """
         Args:
@@ -59,73 +57,57 @@ class ByteFlag(ByteParser):
         return True
 
 
-class BitOneParser(BitParser):
-    """Fails parsing if a bit isn't 1"""
-
-    _backup_label = "Const"
-
-    @override
-    def _decode(self, data: bool) -> bool:
-        if not super()._decode(data):
-            raise FBError("Constant not matched")
-        return True
-
-
-BitOne = BitOneParser()
-
-
-class BitZeroParser(BitParser):
-    """Fails parsing if a bit isn't 0"""
-
-    _backup_label = "Const"
+class ConstClass(Translator):
+    def __init__(self, parser: Parser, value: Any) -> None:
+        super().__init__(parser, "Const")
+        self._value = value
 
     @override
-    def _decode(self, data: bool) -> bool:
-        if super()._decode(data):
-            raise FBError("Constant not matched")
-        return False
-
-
-BitZero = BitZeroParser()
-
-
-class BitWordConst(BitWord):
-    """Fails parsing if a word doesn't match a constant value"""
-
-    _backup_label = "Const"
-
-    @override
-    def __init__(
-        self,
-        value: BitwiseBytes | tuple[bytes, int],
-        label: str | None = None,
-        *,
-        addr: int | None = None,
-    ) -> None:
-        if isinstance(value, BitwiseBytes):
-            self._value = BitwiseBytes(value)
-            bit_length = len(self._value)
-        elif isinstance(value, tuple):  # type: ignore
-            (dat, bit_length) = value
-            self._value = BitwiseBytes(dat, 0, bit_length)
-        else:
-            raise TypeError
-
-        super().__init__(bit_length, label, addr=addr)
-
-    @override
-    def _decode(self, data: BitwiseBytes) -> int:
+    def _translate(self, data: Any) -> Any:
         if self._value != data:
-            print(int(self._value))
-            print(int(data))
             raise FBError("Constant not matched")
-        return int(self._value)
+        return data
+
+
+def make_const(parser: Parser):
+    def const_func(value: Any):
+        return ConstClass(parser, value)
+
+    return const_func
+
+
+BitOne = ConstClass(Bit, True)
+BitZero = ConstClass(Bit, False)
+
+ByteConst = make_const(Byte)
+
+
+def BytesConst(data: bytes):
+    ConstClass(Bytes(len(data)), data)
+
+
+def BitWordConst(value: BitwiseBytes | bytes | int, bit_length: int | None = None):
+    if isinstance(value, BitwiseBytes):
+        v = int(value)
+        if bit_length is None:
+            bit_length = len(value)
+    elif isinstance(value, bytes):  # type: ignore
+        v = int(BitwiseBytes(value, 0, bit_length))
+        if bit_length is None:
+            raise ValueError
+    elif isinstance(value, int):  # type: ignore
+        v = value
+        if bit_length is None:
+            raise ValueError
+    else:
+        raise TypeError
+    return ConstClass(BitWord(bit_length), v)
 
 
 class BitFlags(BitWord):
     """Reads a number of bits from the data"""
 
-    _backup_label = "Const"
+    _default_backup_label = "Const"
 
     @override
     def _decode(self, data: BitwiseBytes) -> list[bool]:  # type: ignore[override]
@@ -133,156 +115,35 @@ class BitFlags(BitWord):
         return data.to_bools()
 
 
-class Int32LParser(Bytes):
-    """Reads 4 bytes as a signed, little endian integer"""
-
-    _backup_label = "Int32"
-
+class IntL(Translator):
     @override
-    def __init__(self, label: str | None = None, *, addr: int | None = None) -> None:
-        super().__init__(4, label, addr=addr)
-
-    @override
-    def _decode(self, data: bytes) -> int:
-        """Decodes a signed integer from 4 little endian bytes.
-
-        Args:
-            data: Four little endian bytes encoding an signed integer
-
-        Returns:
-            The decoded number
-        """
+    def _translate(self, data: bytes) -> int:
         return int.from_bytes(data, "little", signed=True)
 
 
-Int32L = Int32LParser()
-
-
-class UInt32LParser(Bytes):
-    """Reads 4 bytes as a unsigned, little endian integer"""
-
-    _backup_label = "UInt32"
-
+class UIntL(Translator):
     @override
-    def __init__(self, label: str | None = None, *, addr: int | None = None) -> None:
-        super().__init__(4, label, addr=addr)
-
-    @override
-    def _decode(self, data: bytes) -> int:
-        """Decodes a unsigned integer from 4 little endian bytes.
-
-        Args:
-            data: Four little endian bytes encoding an unsigned integer
-
-        Returns:
-            The decoded number
-        """
+    def _translate(self, data: bytes) -> int:
         return int.from_bytes(data, "little", signed=False)
 
 
-UInt32L = UInt32LParser()
+Int32L = IntL(Bytes(4), "Int32")
+Int16L = IntL(Bytes(2), "Int16")
+Int8 = IntL(Bytes(1), "Int8")
 
-
-class Int16LParser(Bytes):
-    """Reads 2 bytes as a signed, little endian integer"""
-
-    _backup_label = "Int16"
-
-    @override
-    def __init__(self, label: str | None = None, *, addr: int | None = None) -> None:
-        super().__init__(2, label, addr=addr)
-
-    @override
-    def _decode(self, data: bytes) -> int:
-        """Decodes a signed integer from 2 little endian bytes.
-
-        Args:
-            data: Two little endian bytes encoding an signed integer
-
-        Returns:
-            The decoded number
-        """
-        return int.from_bytes(data, "little", signed=True)
-
-
-Int16L = Int16LParser()
-
-
-class UInt16LParser(Bytes):
-    """Reads 2 bytes as a unsigned, little endian integer"""
-
-    _backup_label = "UInt16"
-
-    @override
-    def __init__(self, label: str | None = None, *, addr: int | None = None) -> None:
-        super().__init__(2, label, addr=addr)
-
-    @override
-    def _decode(self, data: bytes) -> int:
-        """Decodes a unsigned integer from 2 little endian bytes.
-
-        Args:
-            data: Two little endian bytes encoding an unsigned integer
-
-        Returns:
-            The decoded number
-        """
-        return int.from_bytes(data, "little", signed=False)
-
-
-UInt16L = UInt16LParser()
-
-
-class Int8Parser(ByteParser):
-    """Reads 1 byte as a signed integer"""
-
-    _backup_label = "Int8"
-
-    @override
-    def _decode(self, data: bytes) -> int:
-        """Decodes a signed integer from one byte.
-
-        Args:
-            data: One byte
-
-        Returns:
-            The decoded number
-        """
-        return int.from_bytes(data, "little", signed=True)
-
-
-Int8 = Int8Parser()
-
-
-class UInt8Parser(ByteParser):
-    """Reads 1 byte as an unsigned integer"""
-
-    _backup_label = "UInt8"
-
-    @override
-    def _decode(self, data: bytes) -> int:
-        """Decodes an unsigned integer from one byte.
-
-        Args:
-            data: One byte
-
-        Returns:
-            The decoded number
-        """
-        return int.from_bytes(data, "little", signed=False)
-
-
-UInt8 = UInt8Parser()
+UInt32L = UIntL(Bytes(4), "UInt32")
+UInt16L = UIntL(Bytes(2), "UInt16")
+UInt8 = UIntL(Bytes(1), "UInt8")
 
 
 class Float32LParser(Bytes):
     """Reads 4 bytes as a little endian single precision float"""
 
-    _backup_label = "Float32"
+    _default_backup_label = "Float32"
 
     @override
     def __init__(self, label: str | None = None, *, addr: int | None = None) -> None:
-        super().__init__(4, label, addr=addr)
+        super().__init__(4)
 
     @override
     def _decode(self, data: bytes) -> float:
@@ -296,6 +157,7 @@ class Float32LParser(Bytes):
         Returns:
             The decoded number
         """
+        print(self._backup_label)
         return struct.unpack("<f", data)[0]
 
 
@@ -305,11 +167,11 @@ Float32L = Float32LParser()
 class Float64LParser(Bytes):
     """Reads 8 bytes as a little endian double precision float"""
 
-    _backup_label = "Float64"
+    _default_backup_label = "Float64"
 
     @override
     def __init__(self, label: str | None = None, *, addr: int | None = None) -> None:
-        super().__init__(8, label, addr=addr)
+        super().__init__(8)
 
     @override
     def _decode(self, data: bytes) -> float:
@@ -333,11 +195,11 @@ Float64L = Float64LParser()
 class UuidLParser(Bytes):
     """Reads 16 bytes as a UUID (Little Endian words)"""
 
-    _backup_label = "UUID"
+    _default_backup_label = "UUID"
 
     @override
     def __init__(self, label: str | None = None, *, addr: int | None = None) -> None:
-        super().__init__(16, label, addr=addr)
+        super().__init__(16)
 
     @override
     def _decode(self, data: bytes) -> uuid.UUID:
@@ -358,11 +220,11 @@ UuidL = UuidLParser()
 class UuidBParser(Bytes):
     """Reads 16 bytes as a UUID (Big Endian words)"""
 
-    _backup_label = "UUID"
+    _default_backup_label = "UUID"
 
     @override
     def __init__(self, label: str | None = None, *, addr: int | None = None) -> None:
-        super().__init__(16, label, addr=addr)
+        super().__init__(16)
 
     @override
     def _decode(self, data: bytes) -> uuid.UUID:

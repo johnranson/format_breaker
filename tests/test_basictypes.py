@@ -173,10 +173,9 @@ def test_remnant_bytewise():
     with DataManager(b"123456") as data:
         data.read_bytes(1)
         context = Context()
-        (bt.Remnant @ 1 >> "name")._parse(  # type: ignore
+        assert (bt.Remnant @ 1 >> "name")._parse(  # type: ignore
             data, context
-        )  # pylint: disable=protected-access
-        assert dict(context) == {"name": b"23456"}
+        ) == b"23456"
 
 
 def test_remant_bitwise():
@@ -184,10 +183,9 @@ def test_remant_bitwise():
         context = Context()
         with data.make_child(addr_type=AddrType.BIT) as new_data:
             new_data.read(1)
-            (bt.Remnant @ 1 >> "name")._parse(  # type: ignore
+            assert (bt.Remnant @ 1 >> "name")._parse(  # type: ignore
                 new_data, context
-            )  # pylint: disable=protected-access
-        assert dict(context) == {"name": b"\x70"}
+            ) == b"\x70"
 
 
 class TestBit:

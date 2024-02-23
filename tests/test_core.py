@@ -49,7 +49,9 @@ class TestParser:
     def context(self):
         return Context()
 
-    def test_constructor_defaults_to_no_label_and_address(self, default_dt: Parser, context: Context):
+    def test_constructor_defaults_to_no_label_and_address(
+        self, default_dt: Parser, context: Context
+    ):
 
         assert default_dt._label is None
         assert default_dt._address is None
@@ -72,20 +74,21 @@ class TestParser:
     def labeled_dt(self):
         return Parser() @ 3 >> "label"
 
-    def test_constructor_with_arguments_saves_label_and_address(self, labeled_dt: Parser):
+    def test_constructor_with_arguments_saves_label_and_address(
+        self, labeled_dt: Parser
+    ):
         assert labeled_dt._label == "label"
         assert labeled_dt._address == 3
         assert labeled_dt._decode("123") == "123"
-
 
     def test_repeated_storing_and_updating_produces_expected_dictionary(
         self, labeled_dt: Parser, context: Context
     ):
         labeled_dt._store(context, "123")
         labeled_dt._store(context, "456")
-        labeled_dt._update(context, {"test": "123"})
-        labeled_dt._update(context, {"test": "456"})
-        labeled_dt._update(context, {})
+        labeled_dt._update(context, Context({"test": "123"}))
+        labeled_dt._update(context, Context({"test": "456"}))
+        labeled_dt._update(context, Context({}))
 
         assert context == {
             "label": "123",
@@ -128,7 +131,7 @@ class TestParser:
 
 class TestBlock:
     class MockType(Parser):
-        _backup_label = "mock"
+        _default_backup_label = "mock"
 
         def __init__(self, length=None, value=None) -> None:
             self.value = value

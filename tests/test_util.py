@@ -30,4 +30,4 @@ def test_validate_address_or_length():
     with pytest.raises(IndexError):
         validate_address_or_length(5, 0, 4)
     with pytest.raises(TypeError):
-        validate_address_or_length("5")
+        validate_address_or_length("5")  # type: ignore
