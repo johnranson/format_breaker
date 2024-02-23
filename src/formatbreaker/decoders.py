@@ -44,7 +44,7 @@ class Const(Translator):
 
     @override
     def _translate(self, data: Any) -> Any:
-        decoded_data = self._parsable._decode(data)
+        decoded_data = self._parsable.decode(data)
         if self._value != decoded_data:
             raise FBError("Constant not matched")
         return decoded_data
@@ -88,7 +88,7 @@ class BitFlags(BitWord):
     _default_backup_label = "Const"
 
     @override
-    def _decode(self, data: BitwiseBytes) -> list[bool]:  # type: ignore[override]
+    def decode(self, data: BitwiseBytes) -> list[bool]:  # type: ignore[override]
         return data.to_bools()
 
 

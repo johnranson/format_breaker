@@ -148,7 +148,7 @@ def test_pad_to_address_bytewise():
     with DataManager(b"123456") as data:
         data.read_bytes(1)
         context = Context()
-        bt.PadToAddress(5)._space_and_parse(  # type: ignore
+        bt.PadToAddress(5).goto_addr_and_read(  # type: ignore
             data, context
         )  # pylint: disable=protected-access
     assert dict(context) == {"spacer_0x1-0x4": b"2345"}
@@ -159,10 +159,10 @@ def test_pad_to_address_bitwise():
         context = Context()
         with data.make_child(addr_type=AddrType.BIT) as new_data:
             new_data.read(1)
-            bt.PadToAddress(5)._space_and_parse(  # type: ignore
+            bt.PadToAddress(5).goto_addr_and_read(  # type: ignore
                 new_data, context
             )  # pylint: disable=protected-access
-            bt.PadToAddress(8)._space_and_parse(  # type: ignore
+            bt.PadToAddress(8).goto_addr_and_read(  # type: ignore
                 new_data, context
             )  # pylint: disable=protected-access
 
@@ -173,7 +173,7 @@ def test_remnant_bytewise():
     with DataManager(b"123456") as data:
         data.read_bytes(1)
         context = Context()
-        assert (bt.Remnant @ 1 >> "name")._parse(  # type: ignore
+        assert (bt.Remnant @ 1 >> "name").read(  # type: ignore
             data, context
         ) == b"23456"
 
@@ -183,7 +183,7 @@ def test_remant_bitwise():
         context = Context()
         with data.make_child(addr_type=AddrType.BIT) as new_data:
             new_data.read(1)
-            assert (bt.Remnant @ 1 >> "name")._parse(  # type: ignore
+            assert (bt.Remnant @ 1 >> "name").read(  # type: ignore
                 new_data, context
             ) == b"\x70"
 

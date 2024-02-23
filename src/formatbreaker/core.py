@@ -48,7 +48,7 @@ class Parser:
 
         self._backup_label = self._default_backup_label
 
-    def _parse(
+    def read(
         self,
         data: DataManager,
         context: Context,
@@ -65,7 +65,7 @@ class Parser:
         # pylint: disable=unused-argument
         return None
 
-    def _space_and_parse(self, data: DataManager, context: Context) -> None:
+    def goto_addr_and_read(self, data: DataManager, context: Context) -> None:
         """Reads to the target location and then parses normally
 
         Args:
@@ -76,10 +76,10 @@ class Parser:
         if self._address is not None:
             _spacer(data, context, self._address)
         addr = data.address
-        result = self._parse(data, context)
+        result = self.read(data, context)
         if result is None:
             return
-        result = self._decode(result)
+        result = self.decode(result)
         self._store(context, result, addr)
 
     def parse(
@@ -93,7 +93,7 @@ class Parser:
         """
         context = Context()
         with DataManager(src=data, addr_type=self._addr_type) as manager:
-            self._space_and_parse(manager, context)
+            self.goto_addr_and_read(manager, context)
             return dict(context)
 
     def _store(
@@ -141,7 +141,7 @@ class Parser:
         for key in data:
             self._store(context, data[key], label=key)
 
-    def _decode(self, data: Any) -> Any:
+    def decode(self, data: Any) -> Any:
         """Converts parsed data to another format
 
         Defaults to passing through the data unchanged.
@@ -219,7 +219,7 @@ class Block(Parser):
         self._relative = relative
         self._optional = optional
 
-    def _space_and_parse(
+    def goto_addr_and_read(
         self,
         data: DataManager,
         context: Context,
@@ -240,17 +240,17 @@ class Block(Parser):
         else:
             reps = self._repeat
         for _ in range(reps):
-            result = self._parse(data, context)
+            result = self.read(data, context)
             if result is None:
                 return
-            result = self._decode(result)
+            result = self.decode(result)
             if self._label:
                 self._store(context, dict(result))
             else:
                 result.update_ext()
 
     @override
-    def _parse(
+    def read(
         self,
         data: DataManager,
         context: Context,
@@ -274,7 +274,7 @@ class Block(Parser):
             else:
                 out_context = context.new_child()
             for element in self._elements:
-                element._space_and_parse(  # pylint: disable=protected-access
+                element.goto_addr_and_read(  # pylint: disable=protected-access
                     new_data, out_context
                 )
             return out_context
@@ -382,7 +382,7 @@ class Translator(Parser):
         if parser._address:
             self._address = parser._address
 
-    def _parse(
+    def read(
         self,
         data: DataManager,
         context: Context,
@@ -396,18 +396,20 @@ class Translator(Parser):
             data: Data being parsed
             context: Where results old results are stored
         """
-        return self._parsable._parse(data, context)
+        return self._parsable.read(data, context)
 
-    def _decode(self, data: Any) -> Any:
+    def decode(self, data: Any) -> Any:
         return self._translate(data)
 
     def _translate(self, data: Any) -> Any:
-        return self._parsable._decode(data)
+        return self._parsable.decode(data)
 
 
 def make_translator(parser: Parser, func, backup_label=None):
     class FactoryTranslator(Translator):
         a = [func]
+
         def _translate(self, data: Any) -> Any:
             return self.a[0](data)
+
     return FactoryTranslator(parser, backup_label)

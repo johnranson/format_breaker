@@ -79,7 +79,7 @@ class TestParser:
     ):
         assert labeled_dt._label == "label"
         assert labeled_dt._address == 3
-        assert labeled_dt._decode("123") == "123"
+        assert labeled_dt.decode("123") == "123"
 
     def test_repeated_storing_and_updating_produces_expected_dictionary(
         self, labeled_dt: Parser, context: Context
@@ -99,32 +99,32 @@ class TestParser:
 
     def test_default_parser_performs_no_op(self, labeled_dt, context):
         with DataManager(b"123567") as data:
-            labeled_dt._parse(data, context)
+            labeled_dt.read(data, context)
 
         assert context == {}
 
-    def test_space_and_parse_raises_error_past_required_address(
+    def test_goto_addr_and_read_raises_error_past_required_address(
         self, labeled_dt, context
     ):
         with DataManager(b"123567") as data:
             data.read(5)
             with pytest.raises(IndexError):
-                labeled_dt._space_and_parse(data, context)
+                labeled_dt.goto_addr_and_read(data, context)
 
-    def test_space_and_parse_does_not_create_spacer_if_at_address(
+    def test_goto_addr_and_read_does_not_create_spacer_if_at_address(
         self, labeled_dt, context
     ):
         with DataManager(b"123567") as data:
             data.read(3)
-            labeled_dt._space_and_parse(data, context)
+            labeled_dt.goto_addr_and_read(data, context)
             assert not bool(context)
 
-    def test_space_and_parse_creates_spacer_if_before_required_address(
+    def test_goto_addr_and_read_creates_spacer_if_before_required_address(
         self, labeled_dt, context
     ):
         with DataManager(b"123567") as data:
             data.read(1)
-            labeled_dt._space_and_parse(data, context)
+            labeled_dt.goto_addr_and_read(data, context)
 
             assert context["spacer_0x1-0x2"] == b"23"
 
@@ -138,7 +138,7 @@ class TestBlock:
             self.length = length
             super().__init__()
 
-        def _parse(self, data, context):
+        def read(self, data, context):
             addr = data.address
             data.read(self.length)
             self._store(context, self.value, addr)
