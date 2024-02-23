@@ -8,10 +8,60 @@ import io
 import collections
 from formatbreaker.util import validate_address_or_length
 from formatbreaker.datasource import DataManager, AddrType
+from abc import ABC, abstractmethod
 
+class Parsable(ABC):
+    """This is the abstract base class for all objects that are able to parse data. It is used to identify
+    classes that can be parsed"""
+    __slots__ = ()
+    
+    @property
+    @abstractmethod
+    def _label(self) -> str | None:
+        pass
+    
+    @_label.setter
+    @abstractmethod
+    def _label(self, label: str | None) -> None:
+        pass
+        
+    @property
+    @abstractmethod
+    def _address(self) -> int | None:
+        pass
+
+    @_address.setter
+    @abstractmethod
+    def _address(self, address: int | None) -> None:
+        pass
+
+    @abstractmethod
+    def _space_and_parse(self, data: DataManager, context: Context) -> None:
+        pass
+    
+    @abstractmethod
+    def parse(self, data: bytes | io.BufferedIOBase) -> dict[str, Any]:
+        pass
+
+    def _decode(self, data: Any) -> Any:
+        """Converts parsed data to another format
+
+        Defaults to passing through the data unchanged.
+        This should be overridden as needed by subclasses.
+
+        Args:
+            data: Input data from parsing and previous decoding steps
+
+        Returns:
+            Decoded output data
+        """
+        return data
+
+    def __mul__(self, qty: int):
+        return tuple([self] * qty)
 
 class Parser:
-    """This is the base class for all objects that parse data"""
+    """This is the basic parser implementation that most parsers inherit from"""
 
     __slots__ = ("__label", "__address")
 
