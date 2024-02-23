@@ -57,7 +57,7 @@ class ByteFlag(ByteParser):
         return True
 
 
-class ConstClass(Translator):
+class Const(Translator):
     def __init__(self, parser: Parser, value: Any) -> None:
         super().__init__(parser, "Const")
         self._value = value
@@ -71,19 +71,19 @@ class ConstClass(Translator):
 
 def make_const(parser: Parser):
     def const_func(value: Any):
-        return ConstClass(parser, value)
+        return Const(parser, value)
 
     return const_func
 
 
-BitOne = ConstClass(Bit, True)
-BitZero = ConstClass(Bit, False)
+BitOne = Const(Bit, True)
+BitZero = Const(Bit, False)
 
 ByteConst = make_const(Byte)
 
 
 def BytesConst(data: bytes):
-    ConstClass(Bytes(len(data)), data)
+    Const(Bytes(len(data)), data)
 
 
 def BitWordConst(value: BitwiseBytes | bytes | int, bit_length: int | None = None):
@@ -101,7 +101,7 @@ def BitWordConst(value: BitwiseBytes | bytes | int, bit_length: int | None = Non
             raise ValueError
     else:
         raise TypeError
-    return ConstClass(BitWord(bit_length), v)
+    return Const(BitWord(bit_length), v)
 
 
 class BitFlags(BitWord):
@@ -136,60 +136,19 @@ UInt16L = UIntL(Bytes(2), "UInt16")
 UInt8 = UIntL(Bytes(1), "UInt8")
 
 
-class Float32LParser(Bytes):
-    """Reads 4 bytes as a little endian single precision float"""
-
-    _default_backup_label = "Float32"
-
-    @override
-    def __init__(self, label: str | None = None, *, addr: int | None = None) -> None:
-        super().__init__(4)
+class DeStructor(Translator):
+    def __init__(self, fmt, backup_label=None) -> None:
+        parser = Bytes(struct.calcsize(fmt))
+        super().__init__(parser, backup_label)
+        self._fmt = fmt
 
     @override
-    def _decode(self, data: bytes) -> float:
-        """Decodes a single precision floating point number from little endian
-        bytes.
-
-        Args:
-            data: 4 little endian bytes encoding a single precision floating point
-                number
-
-        Returns:
-            The decoded number
-        """
-        print(self._backup_label)
-        return struct.unpack("<f", data)[0]
+    def _translate(self, data: Any) -> Any:
+        return struct.unpack(self._fmt, data)[0]
 
 
-Float32L = Float32LParser()
-
-
-class Float64LParser(Bytes):
-    """Reads 8 bytes as a little endian double precision float"""
-
-    _default_backup_label = "Float64"
-
-    @override
-    def __init__(self, label: str | None = None, *, addr: int | None = None) -> None:
-        super().__init__(8)
-
-    @override
-    def _decode(self, data: bytes) -> float:
-        """Decodes a double precision floating point number from little endian
-        bytes.
-
-        Args:
-            data: 8 little endian bytes encoding a double precision floating point
-                number
-
-        Returns:
-            The decoded number
-        """
-
-        return struct.unpack("<d", data)[0]
-
-
-Float64L = Float64LParser()
+Float32L = DeStructor("<f", "Float32")
+Float64L = DeStructor("<d", "Float64")
 
 
 class UuidLParser(Bytes):
@@ -198,7 +157,7 @@ class UuidLParser(Bytes):
     _default_backup_label = "UUID"
 
     @override
-    def __init__(self, label: str | None = None, *, addr: int | None = None) -> None:
+    def __init__(self) -> None:
         super().__init__(16)
 
     @override
@@ -223,7 +182,7 @@ class UuidBParser(Bytes):
     _default_backup_label = "UUID"
 
     @override
-    def __init__(self, label: str | None = None, *, addr: int | None = None) -> None:
+    def __init__(self) -> None:
         super().__init__(16)
 
     @override
