@@ -258,10 +258,10 @@ class Block(Parser):
             raise TypeError
         if not all(isinstance(item, Parser) for item in elements):  # type: ignore
             raise TypeError
-        if isinstance(addr_type, AddrType):
-            self._addr_type = addr_type
-        else:
+        if isinstance(addr_type, str):
             self._addr_type = AddrType[addr_type]
+        else:
+            self._addr_type = addr_type
 
         self._elements = elements
         self._relative = relative
@@ -289,9 +289,7 @@ class Block(Parser):
         ) as new_data:
             out_context = Context()
             for element in self._elements:
-                element.goto_addr_and_read(  # pylint: disable=protected-access
-                    new_data, out_context
-                )
+                element.goto_addr_and_read(new_data, out_context)
             return out_context
         return Reverted
 
