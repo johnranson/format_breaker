@@ -226,15 +226,3 @@ class BitWord(Parser):
             The next bit address after the parsed bits
         """
         return data.read_bits(self._bit_length)
-
-    @override
-    def decode(self, data: BitwiseBytes) -> int:
-        """Decodes the bits into an unsigned integer
-
-        Args:
-            data: A string of bits
-
-        Returns:
-            The bits converted to an unsigned integer
-        """
-        return int(data)

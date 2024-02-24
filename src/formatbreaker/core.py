@@ -364,9 +364,7 @@ class Context(collections.ChainMap[str, Any]):
 
 
 class Translator(Parser):
-
     __slots__ = ["_parsable"]
-
     _parsable: Parser
 
     def __init__(self, parser: Parser, backup_label: str | None = None) -> None:
@@ -389,9 +387,6 @@ class Translator(Parser):
     ) -> Any:
         """Parses data
 
-        Should be overridden by any subclass that reads data. Does
-        nothing and returns None by default.
-
         Args:
             data: Data being parsed
             context: Where results old results are stored
@@ -405,11 +400,15 @@ class Translator(Parser):
         return self._parsable.decode(data)
 
 
-def make_translator(parser: Parser, func, backup_label=None):
-    class FactoryTranslator(Translator):
-        a = [func]
+class StaticTranslator(Translator):
 
-        def _translate(self, data: Any) -> Any:
-            return self.a[0](data)
+    __slots__ = ["_translate_func"]
 
-    return FactoryTranslator(parser, backup_label)
+    def __init__(
+        self, parser: Parser, translate_func, backup_label: str | None = None
+    ) -> None:
+        super().__init__(parser, backup_label)
+        self._translate_func = staticmethod(translate_func)
+
+    def _translate(self, data: Any) -> Any:
+        return self._translate_func(data)

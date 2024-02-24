@@ -37,14 +37,14 @@ def test_bit_const():
 
 def test_bit_word_const():
     par = fd.BitWordConst(b"\xFF", 3)
-    assert par.parse(b"\xF0")["Const_0x0"] == 0x07
+    assert int(par.parse(b"\xF0")["Const_0x0"]) == 0x07
     with pytest.raises(FBError):
         _ = par.parse(b"\x80")
 
 
 def test_bit_flags():
     par = fd.BitFlags(8)
-    assert par.parse(b"\x55")["Const_0x0"] == [
+    assert par.parse(b"\x55")["Flags_0x0"] == [
         False,
         True,
         False,

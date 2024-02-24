@@ -240,4 +240,4 @@ class TestBitWord:
                 bt.BitWord(length) >> "value",
                 addr_type=AddrType.BIT,
             )
-        assert bk.parse(b"\xff\0")["value"] == result
+        assert int(bk.parse(b"\xff\0")["value"]) == result

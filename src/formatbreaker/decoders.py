@@ -9,7 +9,7 @@ from typing import override, Any
 import struct
 import uuid
 from formatbreaker.basictypes import Byte, Bytes, BitWord, Bit
-from formatbreaker.core import Translator, Parser, make_translator
+from formatbreaker.core import Translator, Parser, StaticTranslator
 from formatbreaker.exceptions import FBError
 from formatbreaker.bitwisebytes import BitwiseBytes
 
@@ -37,10 +37,88 @@ class ByteFlag(Translator):
         raise FBError()
 
 
+class BitFlags(BitWord):
+    """Reads a number of bits from the data"""
+
+    _default_backup_label = "Flags"
+
+    @override
+    def decode(self, data: BitwiseBytes) -> list[bool]:  # type: ignore[override]
+        return data.to_bools()
+
+
+class BitUInt(BitWord):
+    _default_backup_label = "UInt"
+
+    @override
+    def decode(self, data: BitwiseBytes) -> int:
+        """Decodes the bits into an unsigned integer
+
+        Args:
+            data: A string of bits
+
+        Returns:
+            The bits converted to an unsigned integer
+        """
+        return int(data)
+
+
+def Int(size, byteorder, signed):
+    return StaticTranslator(
+        Bytes(size),
+        lambda data: int.from_bytes(data, byteorder, signed=signed),
+        ("Int" if signed else "UInt") + str(8 * size),
+    )
+
+
+Int32L = Int(4, "little", signed=True)
+Int16L = Int(2, "little", signed=True)
+Int8 = Int(1, "little", signed=True)
+
+UInt32L = Int(4, "little", signed=False)
+UInt16L = Int(2, "little", signed=False)
+UInt8 = Int(1, "little", signed=False)
+
+Int32B = Int(4, "big", signed=True)
+Int16B = Int(2, "big", signed=True)
+
+UInt32B = Int(4, "big", signed=False)
+UInt16B = Int(2, "big", signed=False)
+
+
+def DeStructor(fmt, backup_label=None):
+    return StaticTranslator(
+        Bytes(struct.calcsize(fmt)),
+        lambda data: struct.unpack(fmt, data)[0],
+        backup_label,
+    )
+
+
+Float32L = DeStructor("<f", "Float32")
+Float64L = DeStructor("<d", "Float64")
+
+
+UuidL = StaticTranslator(Bytes(16), lambda data: uuid.UUID(bytes_le=data), "UUID")
+UuidB = StaticTranslator(Bytes(16), lambda data: uuid.UUID(bytes=data), "UUID")
+
+
 class Const(Translator):
-    def __init__(self, parser: Parser, value: Any) -> None:
-        super().__init__(parser, "Const")
+    def __init__(self, value: Any, parser: Parser | None = None) -> None:
+        if parser is None:
+            if isinstance(value, bool):
+                parser = Bit
+            elif isinstance(value, int):
+                if value < 0 or value > 255:
+                    raise ValueError
+                parser = UInt8
+            elif isinstance(value, bytes):
+                parser = Bytes(len(value))
+            elif isinstance(value, BitwiseBytes):
+                parser = BitWord(len(value))
+            else:
+                raise TypeError
         self._value = value
+        super().__init__(parser, "Const")
 
     @override
     def _translate(self, data: Any) -> Any:
@@ -50,83 +128,20 @@ class Const(Translator):
         return decoded_data
 
 
-def make_const(parser: Parser):
-    def const_func(value: Any):
-        return Const(parser, value)
-
-    return const_func
-
-
-BitOne = Const(Bit, True)
-BitZero = Const(Bit, False)
-
-ByteConst = make_const(Byte)
-
-def BytesConst(data: bytes):
-    Const(Bytes(len(data)), data)
-
-
 def BitWordConst(value: BitwiseBytes | bytes | int, bit_length: int | None = None):
     if isinstance(value, BitwiseBytes):
-        v = int(value)
-        if bit_length is None:
-            bit_length = len(value)
+        if bit_length is not None:
+            v = value[0:bit_length]
+        else:
+            v = value
     elif isinstance(value, bytes):  # type: ignore
-        v = int(BitwiseBytes(value, 0, bit_length))
+        v = BitwiseBytes(value, 0, bit_length)
     elif isinstance(value, int):  # type: ignore
-        v = value
+        v = BitwiseBytes(value.to_bytes(), 0, bit_length)
     else:
         raise TypeError
-    if bit_length is None:
-        raise ValueError
-    return Const(BitWord(bit_length), v)
+    return Const(v)
 
 
-class BitFlags(BitWord):
-    """Reads a number of bits from the data"""
-
-    _default_backup_label = "Const"
-
-    @override
-    def decode(self, data: BitwiseBytes) -> list[bool]:  # type: ignore[override]
-        return data.to_bools()
-
-
-class IntL(Translator):
-    @override
-    def _translate(self, data: bytes) -> int:
-        return int.from_bytes(data, "little", signed=True)
-
-
-class UIntL(Translator):
-    @override
-    def _translate(self, data: bytes) -> int:
-        return int.from_bytes(data, "little", signed=False)
-
-
-Int32L = IntL(Bytes(4), "Int32")
-Int16L = IntL(Bytes(2), "Int16")
-Int8 = IntL(Bytes(1), "Int8")
-
-UInt32L = UIntL(Bytes(4), "UInt32")
-UInt16L = UIntL(Bytes(2), "UInt16")
-UInt8 = UIntL(Bytes(1), "UInt8")
-
-
-class DeStructor(Translator):
-    def __init__(self, fmt, backup_label=None) -> None:
-        parser = Bytes(struct.calcsize(fmt))
-        super().__init__(parser, backup_label)
-        self._fmt = fmt
-
-    @override
-    def _translate(self, data: Any) -> Any:
-        return struct.unpack(self._fmt, data)[0]
-
-
-Float32L = DeStructor("<f", "Float32")
-Float64L = DeStructor("<d", "Float64")
-
-
-UuidL = make_translator(Bytes(16), lambda data: uuid.UUID(bytes_le=data), "UUID")
-UuidB = make_translator(Bytes(16), lambda data: uuid.UUID(bytes=data), "UUID")
+BitOne = Const(True)
+BitZero = Const(False)
