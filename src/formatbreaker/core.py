@@ -11,6 +11,13 @@ from formatbreaker.util import validate_address_or_length
 from formatbreaker.datasource import DataManager, AddrType
 
 
+class RevertedClass:
+    pass
+
+
+Reverted = RevertedClass()
+
+
 class Parser:
     """This is the basic parser implementation that most parsers inherit from"""
 
@@ -81,13 +88,14 @@ class Parser:
             _spacer(data, context, self._address)
         addr = data.address
         result = self.read_with_repeat(data, context)
-        if result is None:
+        if result is Reverted:
             return
         if isinstance(result, GeneratorType):
             gen = result
             results = []
             for result in gen:
-                result = self.translate(result)
+                if result is Reverted:
+                    return
                 if isinstance(result, Context):
                     result = dict(result)
                 results.append(result)
@@ -97,8 +105,7 @@ class Parser:
                 self._store(context, dict(result))
             else:
                 context.update(result)
-                print("Got Here")
-        else:
+        elif result is not None:
             self._store(context, result, addr)
 
     def read_with_repeat(
@@ -115,15 +122,18 @@ class Parser:
         if reps > 1:
             return self.repeat(data, context, reps)
         else:
-            return self.translate(self.read(data, context))
+            result = self.read(data, context)
+            if result is Reverted:
+                return Reverted
+            return self.translate(result)
 
     def repeat(self, data: DataManager, context: Context, reps: int) -> Any:
 
         for _ in range(reps):
-            result = self.translate(self.read(data, context))
-            if result is None:
-                return  # Fix this
-            yield result
+            result = self.read(data, context)
+            if result is Reverted:
+                yield Reverted
+            yield self.translate(result)
 
     def parse(
         self,
@@ -138,6 +148,7 @@ class Parser:
         with DataManager(src=data, addr_type=self._addr_type) as manager:
             self.goto_addr_and_read(manager, context)
             return dict(context)
+        return Reverted
 
     def _store(
         self,
@@ -230,14 +241,14 @@ class Block(Parser):
 
     def __init__(
         self,
-        *args: Parser,
+        *elements: Parser,
         relative: bool = True,
         addr_type: AddrType | str = AddrType.PARENT,
         optional: bool = False,
     ) -> None:
         """
         Args:
-            *args: Parsers this Block should hold, in order. Lists will be unpacked
+            *args: Parsers this Block should hold, in order.
             relative: If True, addresses for `self.elements` are relative to this Block.
             bitwise: If True, `self.elements` is addressed and parsed bitwise
             **kwargs: Arguments to be passed to the superclass constructor
@@ -245,15 +256,14 @@ class Block(Parser):
         super().__init__()
         if not isinstance(relative, bool):  # type: ignore
             raise TypeError
-        if not all(isinstance(item, Parser) for item in args):  # type: ignore
+        if not all(isinstance(item, Parser) for item in elements):  # type: ignore
             raise TypeError
         if isinstance(addr_type, AddrType):
             self._addr_type = addr_type
         else:
             self._addr_type = AddrType[addr_type]
 
-        self._elements = args
-
+        self._elements = elements
         self._relative = relative
         self._optional = optional
 
@@ -283,7 +293,7 @@ class Block(Parser):
                     new_data, out_context
                 )
             return out_context
-        return None
+        return Reverted
 
 
 def Optional(*args: Any, **kwargs: Any) -> Block:  # pylint: disable=invalid-name
