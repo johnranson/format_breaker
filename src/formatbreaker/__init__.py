@@ -1,4 +1,5 @@
 """A package for parsing binary data"""
+
 from formatbreaker.exceptions import FBError, FBNoDataError
 from formatbreaker.core import Parser, Block, Optional
 from formatbreaker.basictypes import (

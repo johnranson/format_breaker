@@ -27,7 +27,7 @@ class ByteFlag(Translator):
         self._false_value = false_value
 
     @override
-    def _translate(self, data: Any) -> bool:
+    def translate(self, data: Any) -> bool:
         if data == self._false_value:
             return False
         if self._true_value is None:
@@ -43,7 +43,7 @@ class BitFlags(BitWord):
     _default_backup_label = "Flags"
 
     @override
-    def decode(self, data: BitwiseBytes) -> list[bool]:  # type: ignore[override]
+    def translate(self, data: BitwiseBytes) -> list[bool]:  # type: ignore[override]
         return data.to_bools()
 
 
@@ -51,7 +51,7 @@ class BitUInt(BitWord):
     _default_backup_label = "UInt"
 
     @override
-    def decode(self, data: BitwiseBytes) -> int:
+    def translate(self, data: BitwiseBytes) -> int:
         """Decodes the bits into an unsigned integer
 
         Args:
@@ -63,7 +63,7 @@ class BitUInt(BitWord):
         return int(data)
 
 
-def Int(size, byteorder, signed):
+def IntParser(size, byteorder, signed):
     return StaticTranslator(
         Bytes(size),
         lambda data: int.from_bytes(data, byteorder, signed=signed),
@@ -71,19 +71,19 @@ def Int(size, byteorder, signed):
     )
 
 
-Int32L = Int(4, "little", signed=True)
-Int16L = Int(2, "little", signed=True)
-Int8 = Int(1, "little", signed=True)
+Int32L = IntParser(4, "little", signed=True)
+Int16L = IntParser(2, "little", signed=True)
+Int8 = IntParser(1, "little", signed=True)
 
-UInt32L = Int(4, "little", signed=False)
-UInt16L = Int(2, "little", signed=False)
-UInt8 = Int(1, "little", signed=False)
+UInt32L = IntParser(4, "little", signed=False)
+UInt16L = IntParser(2, "little", signed=False)
+UInt8 = IntParser(1, "little", signed=False)
 
-Int32B = Int(4, "big", signed=True)
-Int16B = Int(2, "big", signed=True)
+Int32B = IntParser(4, "big", signed=True)
+Int16B = IntParser(2, "big", signed=True)
 
-UInt32B = Int(4, "big", signed=False)
-UInt16B = Int(2, "big", signed=False)
+UInt32B = IntParser(4, "big", signed=False)
+UInt16B = IntParser(2, "big", signed=False)
 
 
 def DeStructor(fmt, backup_label=None):
@@ -121,8 +121,8 @@ class Const(Translator):
         super().__init__(parser, "Const")
 
     @override
-    def _translate(self, data: Any) -> Any:
-        decoded_data = self._parsable.decode(data)
+    def translate(self, data: Any) -> Any:
+        decoded_data = self._parser.translate(data)
         if self._value != decoded_data:
             raise FBError("Constant not matched")
         return decoded_data

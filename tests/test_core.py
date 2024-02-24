@@ -79,7 +79,7 @@ class TestParser:
     ):
         assert labeled_dt._label == "label"
         assert labeled_dt._address == 3
-        assert labeled_dt.decode("123") == "123"
+        assert labeled_dt.translate("123") == "123"
 
     def test_repeated_storing_and_updating_produces_expected_dictionary(
         self, labeled_dt: Parser, context: Context

@@ -4,7 +4,7 @@
 # pylint: disable=protected-access
 
 import pytest
-from formatbreaker.core import Block, Repeat
+from formatbreaker.core import Block
 import formatbreaker.basictypes as bt
 from formatbreaker.decoders import UInt8
 from formatbreaker.datasource import DataManager, AddrType
@@ -198,27 +198,30 @@ class TestBit:
         bk = Block((bt.Bit >> "Bit 0")[8], addr_type=AddrType.BIT)
         result = bk.parse(b"\x55")
         assert result == {
-            "Bit 0": False,
-            "Bit 1": True,
-            "Bit 2": False,
-            "Bit 3": True,
-            "Bit 4": False,
-            "Bit 5": True,
-            "Bit 6": False,
-            "Bit 7": True,
+            "Bit 0": [
+                False,
+                True,
+                False,
+                True,
+                False,
+                True,
+                False,
+                True,
+            ]
         }
 
-        bk = Repeat(8)(bt.Bit >> "Bit 0", addr_type=AddrType.BIT)
         result = bk.parse(b"\xAA")
         assert result == {
-            "Bit 0": True,
-            "Bit 1": False,
-            "Bit 2": True,
-            "Bit 3": False,
-            "Bit 4": True,
-            "Bit 5": False,
-            "Bit 6": True,
-            "Bit 7": False,
+            "Bit 0": [
+                True,
+                False,
+                True,
+                False,
+                True,
+                False,
+                True,
+                False,
+            ]
         }
 
 

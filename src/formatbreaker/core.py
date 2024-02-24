@@ -3,6 +3,7 @@ data storage) code"""
 
 from __future__ import annotations
 from typing import ClassVar, Any, override
+from types import GeneratorType
 import copy
 import io
 import collections
@@ -13,13 +14,14 @@ from formatbreaker.datasource import DataManager, AddrType
 class Parser:
     """This is the basic parser implementation that most parsers inherit from"""
 
-    __slots__ = ("__label", "__address", "_addr_type", "_backup_label")
+    __slots__ = ("__label", "__address", "_addr_type", "_backup_label", "_repeat")
 
     __label: str | None
     __address: int | None
     _default_backup_label: ClassVar[str | None] = None
     _default_addr_type: ClassVar[AddrType] = AddrType.UNDEFINED
     _addr_type: AddrType
+    _repeat: int | str
 
     @property
     def _label(self) -> str | None:
@@ -47,6 +49,8 @@ class Parser:
         self._addr_type = self._default_addr_type
 
         self._backup_label = self._default_backup_label
+
+        self._repeat = 1
 
     def read(
         self,
@@ -76,11 +80,50 @@ class Parser:
         if self._address is not None:
             _spacer(data, context, self._address)
         addr = data.address
-        result = self.read(data, context)
+        result = self.read_with_repeat(data, context)
         if result is None:
             return
-        result = self.decode(result)
-        self._store(context, result, addr)
+        if isinstance(result, GeneratorType):
+            gen = result
+            results = []
+            for result in gen:
+                result = self.translate(result)
+                if isinstance(result, Context):
+                    result = dict(result)
+                results.append(result)
+            self._store(context, results, addr)
+        elif isinstance(result, Context):
+            if self._label:
+                self._store(context, dict(result))
+            else:
+                context.update(result)
+                print("Got Here")
+        else:
+            self._store(context, result, addr)
+
+    def read_with_repeat(
+        self,
+        data: DataManager,
+        context: Context,
+    ) -> Any:
+        if isinstance(self._repeat, str):
+            reps = context[self._repeat]
+            if not isinstance(reps, int):
+                raise ValueError
+        else:
+            reps = self._repeat
+        if reps > 1:
+            return self.repeat(data, context, reps)
+        else:
+            return self.translate(self.read(data, context))
+
+    def repeat(self, data: DataManager, context: Context, reps: int) -> Any:
+
+        for _ in range(reps):
+            result = self.translate(self.read(data, context))
+            if result is None:
+                return  # Fix this
+            yield result
 
     def parse(
         self,
@@ -141,7 +184,7 @@ class Parser:
         for key in data:
             self._store(context, data[key], label=key)
 
-    def decode(self, data: Any) -> Any:
+    def translate(self, data: Any) -> Any:
         """Converts parsed data to another format
 
         Defaults to passing through the data unchanged.
@@ -151,13 +194,15 @@ class Parser:
             data: Input data from parsing and previous decoding steps
 
         Returns:
-            Decoded output data
+            Translated output data
         """
         return data
 
     def __getitem__(self, qty: int):
+        b = copy.copy(self)
         validate_address_or_length(qty)
-        return Repeat(qty)(self)
+        b._repeat = qty
+        return b
 
     def __matmul__(self, addr: int):
         b = copy.copy(self)
@@ -177,12 +222,11 @@ class Block(Parser):
     """A container that holds ordered data fields and provides a mechanism for
     parsing them in order"""
 
-    __slots__ = ("_relative", "_elements", "_optional", "_repeat")
+    __slots__ = ("_relative", "_elements", "_optional")
 
     _relative: bool
     _elements: tuple[Parser, ...]
     _optional: bool
-    _repeat: int | str
 
     def __init__(
         self,
@@ -190,7 +234,6 @@ class Block(Parser):
         relative: bool = True,
         addr_type: AddrType | str = AddrType.PARENT,
         optional: bool = False,
-        repeat_qty: int | str = 1,
     ) -> None:
         """
         Args:
@@ -209,45 +252,10 @@ class Block(Parser):
         else:
             self._addr_type = AddrType[addr_type]
 
-        if isinstance(repeat_qty, int) | isinstance(repeat_qty, str):
-            self._repeat = repeat_qty
-        else:
-            raise TypeError
-
         self._elements = args
 
         self._relative = relative
         self._optional = optional
-
-    def goto_addr_and_read(
-        self,
-        data: DataManager,
-        context: Context,
-    ) -> None:
-        """Reads to the target location and then parses normally
-
-        Args:
-            data: Data being parsed
-            context: Where results are stored including prior results in the same
-                containing Block
-        """
-        if self._address is not None:
-            _spacer(data, context, self._address)
-        if isinstance(self._repeat, str):
-            reps = context[self._repeat]
-            if not isinstance(reps, int):
-                raise ValueError
-        else:
-            reps = self._repeat
-        for _ in range(reps):
-            result = self.read(data, context)
-            if result is None:
-                return
-            result = self.decode(result)
-            if self._label:
-                self._store(context, dict(result))
-            else:
-                result.update_ext()
 
     @override
     def read(
@@ -269,10 +277,7 @@ class Block(Parser):
             addr_type=self._addr_type,
             revertible=self._optional,
         ) as new_data:
-            if self._label:
-                out_context = Context()
-            else:
-                out_context = context.new_child()
+            out_context = Context()
             for element in self._elements:
                 element.goto_addr_and_read(  # pylint: disable=protected-access
                     new_data, out_context
@@ -290,17 +295,6 @@ def Optional(*args: Any, **kwargs: Any) -> Block:  # pylint: disable=invalid-nam
         An optional `Block`
     """
     return Block(*args, optional=True, **kwargs)
-
-
-def Repeat(repeat_qty: int | str):  # pylint: disable=invalid-name
-    """Shorthand for generating a repeated `Block`.
-
-    Takes the same arguments as a `Block`.
-
-    Returns:
-        An optional `Block`
-    """
-    return lambda *args, **kwargs: Block(*args, repeat_qty=repeat_qty, **kwargs)
 
 
 def _spacer(
@@ -364,12 +358,12 @@ class Context(collections.ChainMap[str, Any]):
 
 
 class Translator(Parser):
-    __slots__ = ["_parsable"]
-    _parsable: Parser
+    __slots__ = ["_parser"]
+    _parser: Parser
 
     def __init__(self, parser: Parser, backup_label: str | None = None) -> None:
         super().__init__()
-        self._parsable = parser
+        self._parser = parser
         if backup_label:
             self._backup_label = backup_label
         else:
@@ -391,13 +385,10 @@ class Translator(Parser):
             data: Data being parsed
             context: Where results old results are stored
         """
-        return self._parsable.read(data, context)
+        return self._parser.read_with_repeat(data, context)
 
-    def decode(self, data: Any) -> Any:
-        return self._translate(data)
-
-    def _translate(self, data: Any) -> Any:
-        return self._parsable.decode(data)
+    def translate(self, data: Any) -> Any:
+        return data
 
 
 class StaticTranslator(Translator):
@@ -410,5 +401,5 @@ class StaticTranslator(Translator):
         super().__init__(parser, backup_label)
         self._translate_func = staticmethod(translate_func)
 
-    def _translate(self, data: Any) -> Any:
+    def translate(self, data: Any) -> Any:
         return self._translate_func(data)
