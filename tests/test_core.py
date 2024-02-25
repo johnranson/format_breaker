@@ -8,7 +8,7 @@ from typing import Any
 import io
 import pytest
 from formatbreaker.basictypes import Failure
-from formatbreaker.core import Parser, Block, Section, Context, _spacer, Optional
+from formatbreaker.core import Parser, Block, Section, Context, Success, _spacer, Optional
 from formatbreaker.bitwisebytes import BitwiseBytes
 from formatbreaker.datasource import DataManager
 from formatbreaker.exceptions import FBNoDataError
@@ -41,11 +41,17 @@ class TestContext:
             context.update_ext()
 
 
+class ConcreteParser(Parser):
+    def read(self, *args, **kwargs) -> None:
+        # pylint: disable=unused-argument
+        return Success
+
+
 class TestParser:
 
     @pytest.fixture
     def default_dt(self):
-        return Parser()
+        return ConcreteParser()
 
     @pytest.fixture
     def context(self):
@@ -63,18 +69,18 @@ class TestParser:
 
     def test_bad_constructor_types_raise_exceptions(self):
         with pytest.raises(TypeError):
-            _ = Parser() @ "1" >> "label"  # type: ignore
+            _ = ConcreteParser() @ "1" >> "label"  # type: ignore
 
         with pytest.raises(TypeError):
-            _ = Parser() @ 3 >> 3  # type: ignore
+            _ = ConcreteParser() @ 3 >> 3  # type: ignore
 
     def test_negative_address_raises_exception(self):
         with pytest.raises(IndexError):
-            _ = Parser() @ -1 >> "label"
+            _ = ConcreteParser() @ -1 >> "label"
 
     @pytest.fixture
     def labeled_dt(self) -> Parser:
-        return Parser() @ 3 >> "label"
+        return ConcreteParser() @ 3 >> "label"
 
     def test_constructor_with_arguments_saves_label_and_address(
         self, labeled_dt: Parser
@@ -143,7 +149,7 @@ class TestSection:
         def read(self, data: DataManager, context: Context):
             addr = data.address
             data.read(self.length)
-            self._store(context, self.value, addr)
+
 
     @pytest.fixture
     def empty_section(self) -> Section:

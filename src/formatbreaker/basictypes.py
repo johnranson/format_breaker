@@ -7,7 +7,7 @@ by only implementing __init__ and _decode, it should not go here.
 
 from __future__ import annotations
 from typing import override, ClassVar
-from formatbreaker.core import Parser, Context
+from formatbreaker.core import Parser, Context, Success, ParseResult
 from formatbreaker.datasource import DataManager, AddrType
 from formatbreaker.exceptions import FBError
 from formatbreaker.util import validate_address_or_length
@@ -137,6 +137,10 @@ class PadToAddress(Parser):
         """
         super().__init__()
         self._address = addr
+
+    def read(self, *args, **kwargs) -> type[ParseResult]:
+        # pylint: disable=unused-argument
+        return Success
 
 
 class RemnantParser(Parser):

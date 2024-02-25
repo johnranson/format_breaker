@@ -6,6 +6,7 @@ data storage) code"""
 
 from __future__ import annotations
 from typing import ClassVar, Any, override, Callable
+from abc import ABC, abstractmethod
 import copy
 import io
 import collections
@@ -14,18 +15,18 @@ from formatbreaker.datasource import DataManager, AddrType
 
 
 class ParseResult:
-    pass
+    """Returned by Parser.read() when there is no data to return """
 
 
 class Reverted(ParseResult):
-    pass
+    """Returned by an Optional.read() that fails"""
 
 
 class Success(ParseResult):
-    pass
+    """Returned after a successful Parser.read() with no return data"""
 
 
-class Parser:
+class Parser(ABC):
     """This is the basic parser implementation that most parsers inherit from"""
 
     __slots__ = ("__label", "__addr_type", "__address", "_backup_label")
@@ -76,6 +77,7 @@ class Parser:
 
         self._backup_label = self._default_backup_label
 
+    @abstractmethod
     def read(
         self,
         data: DataManager,
@@ -90,8 +92,6 @@ class Parser:
             data: Data being parsed
             context: Where results old results are stored
         """
-        # pylint: disable=unused-argument
-        return None
 
     def goto_addr_and_read(
         self, data: DataManager, context: Context
@@ -109,9 +109,11 @@ class Parser:
         result = self.read_and_translate(data, context)
         if result is Reverted:
             return Reverted
-        elif isinstance(result, Context):
+        if isinstance(result, Context):
             result.update_ext()
-        elif result is not None:
+        elif result is None:
+            raise ValueError
+        elif result is not Success:
             self._store(context, result, addr)
         return Success
 
@@ -282,6 +284,8 @@ class Block(Parser):
 
 
 class Section(Block):
+    _default_backup_label: ClassVar[str | None] = "Section"
+
     @override
     def read(
         self,
@@ -305,6 +309,8 @@ class Section(Block):
             out_context = context.new_child()
             for element in self._elements:
                 element.goto_addr_and_read(new_data, out_context)
+                
+            print(out_context)
             return out_context
         return Reverted
 
