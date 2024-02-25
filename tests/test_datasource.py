@@ -2,6 +2,7 @@
 # pylint: disable=missing-class-docstring
 # pylint: disable=missing-function-docstring
 # pylint: disable=protected-access
+# pyright: reportPrivateUsage=false
 
 from io import BytesIO
 import pytest
@@ -108,7 +109,7 @@ class TestDataBuffer:
 class TestDataManager:
 
     @pytest.mark.parametrize("src", [src_data, BytesIO(src_data)])
-    def test_basic_bit_reading(self, src):
+    def test_basic_bit_reading(self, src: BytesIO):
         with DataManager(src) as data:
 
             b = data.read_bits(1025)
@@ -120,7 +121,7 @@ class TestDataManager:
         assert d == BitwiseBytes(src_data, 2050)
 
     @pytest.mark.parametrize("src", [src_data, BytesIO(src_data)])
-    def test_basic_byte_reading(self, src):
+    def test_basic_byte_reading(self, src: BytesIO):
         with DataManager(src) as data:
 
             b = data.read_bytes(1025)
@@ -132,7 +133,7 @@ class TestDataManager:
         assert d == src_data[2050:]
 
     @pytest.mark.parametrize("src", [src_data, BytesIO(src_data)])
-    def test_zero_length_reads(self, src):
+    def test_zero_length_reads(self, src: BytesIO):
         with DataManager(src) as data:
 
             b = data.read_bytes(0)
@@ -142,7 +143,7 @@ class TestDataManager:
         assert c == BitwiseBytes(b"")
 
     @pytest.mark.parametrize("src", [src_data, BytesIO(src_data)])
-    def test_read_bytes_at_eof_raises_exception(self, src):
+    def test_read_bytes_at_eof_raises_exception(self, src: BytesIO):
         with DataManager(src) as data:
 
             _ = data.read_bytes(len(src_data))
@@ -151,7 +152,7 @@ class TestDataManager:
                 _ = data.read_bytes(1)
 
     @pytest.mark.parametrize("src", [src_data, BytesIO(src_data)])
-    def test_read_bits_at_eof_raises_exception(self, src):
+    def test_read_bits_at_eof_raises_exception(self, src: BytesIO):
         with DataManager(src) as data:
 
             _ = data.read_bits(bitlen(src_data))
@@ -160,14 +161,14 @@ class TestDataManager:
                 _ = data.read_bits(1)
 
     @pytest.mark.parametrize("src", [src_data, BytesIO(src_data)])
-    def test_read_bytes_past_eof_raises_exception(self, src):
+    def test_read_bytes_past_eof_raises_exception(self, src: BytesIO):
         with DataManager(src) as data:
 
             with pytest.raises(FBNoDataError):
                 _ = data.read_bytes(len(src_data) + 1)
 
     @pytest.mark.parametrize("src", [src_data, BytesIO(src_data)])
-    def test_read_bits_past_eof_raises_exception(self, src):
+    def test_read_bits_past_eof_raises_exception(self, src: BytesIO):
         with DataManager(src) as data:
 
             with pytest.raises(FBNoDataError):

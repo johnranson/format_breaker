@@ -5,16 +5,16 @@ The classes in this module add functionality to existing parsers by adding
 """
 
 from __future__ import annotations
-from typing import override, Any
+from typing import override, Any, Literal
 import struct
 import uuid
 from formatbreaker.basictypes import Byte, Bytes, BitWord, Bit
-from formatbreaker.core import Translator, Parser, StaticTranslator
+from formatbreaker.core import Modifier, Parser, Translator
 from formatbreaker.exceptions import FBError
 from formatbreaker.bitwisebytes import BitwiseBytes
 
 
-class ByteFlag(Translator):
+class ByteFlag(Modifier):
     """Reads as a boolean"""
 
     _true_value: int | None
@@ -63,8 +63,8 @@ class BitUInt(BitWord):
         return int(data)
 
 
-def IntParser(size, byteorder, signed):
-    return StaticTranslator(
+def IntParser(size: int, byteorder: Literal["little", "big"], signed: bool):
+    return Translator(
         Bytes(size),
         lambda data: int.from_bytes(data, byteorder, signed=signed),
         ("Int" if signed else "UInt") + str(8 * size),
@@ -86,8 +86,8 @@ UInt32B = IntParser(4, "big", signed=False)
 UInt16B = IntParser(2, "big", signed=False)
 
 
-def DeStructor(fmt, backup_label=None):
-    return StaticTranslator(
+def DeStructor(fmt: str, backup_label: str | None = None):
+    return Translator(
         Bytes(struct.calcsize(fmt)),
         lambda data: struct.unpack(fmt, data)[0],
         backup_label,
@@ -98,11 +98,11 @@ Float32L = DeStructor("<f", "Float32")
 Float64L = DeStructor("<d", "Float64")
 
 
-UuidL = StaticTranslator(Bytes(16), lambda data: uuid.UUID(bytes_le=data), "UUID")
-UuidB = StaticTranslator(Bytes(16), lambda data: uuid.UUID(bytes=data), "UUID")
+UuidL = Translator(Bytes(16), lambda data: uuid.UUID(bytes_le=data), "UUID")
+UuidB = Translator(Bytes(16), lambda data: uuid.UUID(bytes=data), "UUID")
 
 
-class Const(Translator):
+class Const(Modifier):
     def __init__(self, value: Any, parser: Parser | None = None) -> None:
         if parser is None:
             if isinstance(value, bool):

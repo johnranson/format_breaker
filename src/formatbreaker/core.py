@@ -1,9 +1,11 @@
 """This module contains the basic Parser, Block (Parser container), and Context (Parser
 data storage) code"""
 
+# pyright: reportUnnecessaryComparison=false
+# pyright: reportUnnecessaryIsInstance=false
+
 from __future__ import annotations
-from typing import ClassVar, Any, override
-from types import GeneratorType
+from typing import ClassVar, Any, override, Callable
 import copy
 import io
 import collections
@@ -11,24 +13,28 @@ from formatbreaker.util import validate_address_or_length
 from formatbreaker.datasource import DataManager, AddrType
 
 
-class RevertedClass:
+class ParseResult:
     pass
 
 
-Reverted = RevertedClass()
+class Reverted(ParseResult):
+    pass
+
+
+class Success(ParseResult):
+    pass
 
 
 class Parser:
     """This is the basic parser implementation that most parsers inherit from"""
 
-    __slots__ = ("__label", "__address", "_addr_type", "_backup_label", "_repeat")
+    __slots__ = ("__label", "__addr_type", "__address", "_backup_label")
 
-    __label: str | None
-    __address: int | None
     _default_backup_label: ClassVar[str | None] = None
     _default_addr_type: ClassVar[AddrType] = AddrType.UNDEFINED
-    _addr_type: AddrType
-    _repeat: int | str
+    __label: str | None
+    __address: int | None
+    __addr_type: AddrType
 
     @property
     def _label(self) -> str | None:
@@ -36,9 +42,22 @@ class Parser:
 
     @_label.setter
     def _label(self, label: str) -> None:
-        if label is not None and not isinstance(label, str):  # type: ignore
+        if label is not None and not isinstance(label, str):
             raise TypeError("Parser labels must be strings")
         self.__label = label
+
+    @property
+    def _addr_type(self) -> AddrType:
+        return self.__addr_type
+
+    @_addr_type.setter
+    def _addr_type(self, addr_type: AddrType | str) -> None:
+        if isinstance(addr_type, str):
+            self.__addr_type = AddrType[addr_type]
+        elif isinstance(addr_type, AddrType):
+            self.__addr_type = addr_type
+        else:
+            raise TypeError("Address type must be ")
 
     @property
     def _address(self) -> int | None:
@@ -57,8 +76,6 @@ class Parser:
 
         self._backup_label = self._default_backup_label
 
-        self._repeat = 1
-
     def read(
         self,
         data: DataManager,
@@ -76,7 +93,9 @@ class Parser:
         # pylint: disable=unused-argument
         return None
 
-    def goto_addr_and_read(self, data: DataManager, context: Context) -> None:
+    def goto_addr_and_read(
+        self, data: DataManager, context: Context
+    ) -> type[ParseResult]:
         """Reads to the target location and then parses normally
 
         Args:
@@ -87,53 +106,25 @@ class Parser:
         if self._address is not None:
             _spacer(data, context, self._address)
         addr = data.address
-        result = self.read_with_repeat(data, context)
+        result = self.read_and_translate(data, context)
         if result is Reverted:
-            return
-        if isinstance(result, GeneratorType):
-            gen = result
-            results = []
-            for result in gen:
-                if result is Reverted:
-                    return
-                if isinstance(result, Context):
-                    result = dict(result)
-                results.append(result)
-            self._store(context, results, addr)
+            return Reverted
         elif isinstance(result, Context):
-            if self._label:
-                self._store(context, dict(result))
-            else:
-                context.update(result)
+            result.update_ext()
         elif result is not None:
             self._store(context, result, addr)
+        return Success
 
-    def read_with_repeat(
+    def read_and_translate(
         self,
         data: DataManager,
         context: Context,
     ) -> Any:
-        if isinstance(self._repeat, str):
-            reps = context[self._repeat]
-            if not isinstance(reps, int):
-                raise ValueError
-        else:
-            reps = self._repeat
-        if reps > 1:
-            return self.repeat(data, context, reps)
-        else:
-            result = self.read(data, context)
-            if result is Reverted:
-                return Reverted
-            return self.translate(result)
 
-    def repeat(self, data: DataManager, context: Context, reps: int) -> Any:
-
-        for _ in range(reps):
-            result = self.read(data, context)
-            if result is Reverted:
-                yield Reverted
-            yield self.translate(result)
+        result = self.read(data, context)
+        if result is Reverted:
+            return Reverted
+        return self.translate(result)
 
     def parse(
         self,
@@ -148,7 +139,7 @@ class Parser:
         with DataManager(src=data, addr_type=self._addr_type) as manager:
             self.goto_addr_and_read(manager, context)
             return dict(context)
-        return Reverted
+        return {}
 
     def _store(
         self,
@@ -177,7 +168,6 @@ class Parser:
             label = self._label
         elif self._backup_label:
             if addr is not None:
-                validate_address_or_length(addr)
                 label = self._backup_label + "_" + hex(addr)
             else:
                 label = self._backup_label
@@ -210,19 +200,18 @@ class Parser:
         return data
 
     def __getitem__(self, qty: int):
-        b = copy.copy(self)
-        validate_address_or_length(qty)
-        b._repeat = qty
-        return b
+        return Array(self, qty)
+
+    def __mul__(self, qty: int):
+        return Repeat(self, qty)
 
     def __matmul__(self, addr: int):
         b = copy.copy(self)
-        validate_address_or_length(addr)
         b._address = addr
         return b
 
     def __rshift__(self, label: str):
-        if not isinstance(label, str):  # type: ignore
+        if not isinstance(label, str):
             raise TypeError
         b = copy.copy(self)
         b._label = label
@@ -238,6 +227,7 @@ class Block(Parser):
     _relative: bool
     _elements: tuple[Parser, ...]
     _optional: bool
+    _default_backup_label: ClassVar[str | None] = "Block"
 
     def __init__(
         self,
@@ -254,15 +244,12 @@ class Block(Parser):
             **kwargs: Arguments to be passed to the superclass constructor
         """
         super().__init__()
-        if not isinstance(relative, bool):  # type: ignore
+        if not isinstance(relative, bool):
             raise TypeError
-        if not all(isinstance(item, Parser) for item in elements):  # type: ignore
+        if not all(isinstance(item, Parser) for item in elements):
             raise TypeError
-        if isinstance(addr_type, str):
-            self._addr_type = AddrType[addr_type]
-        else:
-            self._addr_type = addr_type
 
+        self._addr_type = addr_type
         self._elements = elements
         self._relative = relative
         self._optional = optional
@@ -272,7 +259,7 @@ class Block(Parser):
         self,
         data: DataManager,
         context: Context,
-    ) -> Context:
+    ) -> dict[str, Any] | type[ParseResult]:
         """Parse the data using each Parser sequentially.
 
         Args:
@@ -290,11 +277,39 @@ class Block(Parser):
             out_context = Context()
             for element in self._elements:
                 element.goto_addr_and_read(new_data, out_context)
+            return dict(out_context)
+        return Reverted
+
+
+class Section(Block):
+    @override
+    def read(
+        self,
+        data: DataManager,
+        context: Context,
+    ) -> Context | type[ParseResult]:
+        """Parse the data using each Parser sequentially.
+
+        Args:
+            data: Data being parsed
+            context: Where results are stored including prior results in the same
+                containing Block
+            addr: The bit or byte address in `data` where the Data being parsed lies.
+        """
+
+        with data.make_child(
+            relative=self._relative,
+            addr_type=self._addr_type,
+            revertible=self._optional,
+        ) as new_data:
+            out_context = context.new_child()
+            for element in self._elements:
+                element.goto_addr_and_read(new_data, out_context)
             return out_context
         return Reverted
 
 
-def Optional(*args: Any, **kwargs: Any) -> Block:  # pylint: disable=invalid-name
+def Optional(*args: Any, **kwargs: Any) -> Section:  # pylint: disable=invalid-name
     """Shorthand for generating an optional `Block`.
 
     Takes the same arguments as a `Block`.
@@ -302,7 +317,7 @@ def Optional(*args: Any, **kwargs: Any) -> Block:  # pylint: disable=invalid-nam
     Returns:
         An optional `Block`
     """
-    return Block(*args, optional=True, **kwargs)
+    return Section(*args, optional=True, **kwargs)
 
 
 def _spacer(
@@ -365,7 +380,7 @@ class Context(collections.ChainMap[str, Any]):
         self.maps[0].clear()
 
 
-class Translator(Parser):
+class Modifier(Parser):
     __slots__ = ["_parser"]
     _parser: Parser
 
@@ -393,21 +408,120 @@ class Translator(Parser):
             data: Data being parsed
             context: Where results old results are stored
         """
-        return self._parser.read_with_repeat(data, context)
-
-    def translate(self, data: Any) -> Any:
-        return data
+        return self._parser.read_and_translate(data, context)
 
 
-class StaticTranslator(Translator):
+class Translator(Modifier):
 
     __slots__ = ["_translate_func"]
 
     def __init__(
-        self, parser: Parser, translate_func, backup_label: str | None = None
+        self,
+        parser: Parser,
+        translate_func: Callable[[Any], Any],
+        backup_label: str | None = None,
     ) -> None:
         super().__init__(parser, backup_label)
-        self._translate_func = staticmethod(translate_func)
+        self._translate_func: Callable[[Any], Any] = staticmethod(translate_func)
 
     def translate(self, data: Any) -> Any:
         return self._translate_func(data)
+
+
+class Repeat(Modifier):
+    __slots__ = ["_repeat_qty"]
+
+    def __init__(self, parser: Parser, repeat_qty: int | str) -> None:
+        super().__init__(parser)
+        validate_address_or_length(repeat_qty, 1)
+        self._repeat_qty = repeat_qty
+
+    @override
+    def read(
+        self,
+        data: DataManager,
+        context: Context,
+    ) -> Context:
+        """Parse the data using each Parser sequentially.
+
+        Args:
+            data: Data being parsed
+            context: Where results are stored including prior results in the same
+                containing Block
+            addr: The bit or byte address in `data` where the Data being parsed lies.
+        """
+
+        if isinstance(self._repeat_qty, str):
+            reps = context[self._repeat_qty]
+        if isinstance(self._repeat_qty, int):
+            reps = self._repeat_qty
+        else:
+            raise ValueError
+
+        results = context.new_child()
+
+        for _ in range(reps):
+            with data.make_child(
+                relative=True,
+                addr_type=AddrType.PARENT,
+                revertible=False,
+            ) as new_data:
+                addr = new_data.address
+                out_context = results.new_child()
+                result = self._parser.read_and_translate(new_data, context)
+                if result is Reverted:
+                    continue
+                elif isinstance(result, Context):
+                    result.update_ext()
+                elif result is not None:
+                    self._store(out_context, result, addr)
+                out_context.update_ext()
+        return results
+
+
+class Array(Modifier):
+    __slots__ = ["_repeat_qty"]
+
+    def __init__(self, parser: Parser, repeat_qty: int | str) -> None:
+        super().__init__(parser)
+        validate_address_or_length(repeat_qty)
+        self._repeat_qty = repeat_qty
+
+    @override
+    def read(
+        self,
+        data: DataManager,
+        context: Context,
+    ) -> list[Any] | type[ParseResult]:
+        """Parse the data using each Parser sequentially.
+
+        Args:
+            data: Data being parsed
+            context: Where results are stored including prior results in the same
+                containing Block
+            addr: The bit or byte address in `data` where the Data being parsed lies.
+        """
+
+        if isinstance(self._repeat_qty, str):
+            reps = context[self._repeat_qty]
+        if isinstance(self._repeat_qty, int):
+            reps = self._repeat_qty
+        else:
+            raise ValueError
+
+        results: list[Any] = []
+        for _ in range(reps):
+            with data.make_child(
+                relative=True,
+                addr_type=AddrType.PARENT,
+                revertible=False,
+            ) as new_data:
+                out_context = Context()
+                result = self._parser.read_and_translate(new_data, out_context)
+                if result is Reverted:
+                    results.append([])
+                elif isinstance(result, Context):
+                    results.append(dict(result))  # Well, I guess that's okay
+                elif result is not None:
+                    results.append(result)
+        return results

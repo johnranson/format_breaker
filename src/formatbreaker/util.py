@@ -1,8 +1,10 @@
 """The module contains utility functions for the package"""
 
+from typing import Any
+
 
 def validate_address_or_length(
-    addr: int, amin: int = 0, amax: int | None = None
+    addr: Any, amin: int = 0, amax: int | None = None
 ) -> None:
     """Ensure that a value is a valid address or length
 

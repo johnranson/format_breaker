@@ -4,12 +4,11 @@
 # pylint: disable=protected-access
 
 import pytest
-from formatbreaker.core import Block
 import formatbreaker.basictypes as bt
 from formatbreaker.decoders import UInt8
 from formatbreaker.datasource import DataManager, AddrType
 from formatbreaker.exceptions import FBError
-from formatbreaker.core import Context
+from formatbreaker.core import Context, Section
 
 
 class TestByte:
@@ -106,20 +105,20 @@ class TestVarBytes:
             bt.VarBytes(source="length").parse(b"abcde")
 
     @pytest.fixture
-    def test_block(self):
-        return Block(UInt8 >> "length", bt.VarBytes(source="length"))
+    def test_section(self):
+        return Section(UInt8 >> "length", bt.VarBytes(source="length"))
 
-    def test_reads_single_byte(self, test_block: Block):
-        assert test_block.parse(b"\x015")["VarBytes_0x1"] == b"5"
+    def test_reads_single_byte(self, test_section: Section):
+        assert test_section.parse(b"\x015")["VarBytes_0x1"] == b"5"
 
-    def test_reads_all_byte(self, test_block: Block):
-        assert test_block.parse(b"\xFF" + bytes(range(255)))["VarBytes_0x1"] == bytes(
+    def test_reads_all_byte(self, test_section: Section):
+        assert test_section.parse(b"\xFF" + bytes(range(255)))["VarBytes_0x1"] == bytes(
             range(255)
         )
 
-    def test_reads_past_end_raises_error(self, test_block: Block):
+    def test_reads_past_end_raises_error(self, test_section: Section):
         with pytest.raises(FBError):
-            test_block.parse(b"\x01")
+            test_section.parse(b"\x01")
 
     def test_invalid_length_key_raises_error(self):
         with pytest.raises(TypeError):
@@ -128,15 +127,15 @@ class TestVarBytes:
             bt.VarBytes(source=None)  # type: ignore
 
     @pytest.fixture
-    def test_block_address(self):
-        return Block(UInt8 >> "length", bt.VarBytes(source="length") @ 5 >> "results")
+    def test_section_address(self):
+        return Section(UInt8 >> "length", bt.VarBytes(source="length") @ 5 >> "results")
 
-    def test_reads_positional_bytes(self, test_block_address: Block):
-        assert test_block_address.parse(b"\x0100005")["results"] == b"5"
+    def test_reads_positional_bytes(self, test_section_address: Section):
+        assert test_section_address.parse(b"\x0100005")["results"] == b"5"
 
     @pytest.fixture
-    def test_block_bitwise(self):
-        return Block(
+    def test_section_bitwise(self):
+        return Section(
             UInt8 >> "length",
             bt.VarBytes(source="length") @ 12 >> "results",
             bt.PadToAddress(24),
@@ -148,9 +147,7 @@ def test_pad_to_address_bytewise():
     with DataManager(b"123456") as data:
         data.read_bytes(1)
         context = Context()
-        bt.PadToAddress(5).goto_addr_and_read(  # type: ignore
-            data, context
-        )  # pylint: disable=protected-access
+        bt.PadToAddress(5).goto_addr_and_read(data, context)
     assert dict(context) == {"spacer_0x1-0x4": b"2345"}
 
 
@@ -159,10 +156,8 @@ def test_pad_to_address_bitwise():
         context = Context()
         with data.make_child(addr_type=AddrType.BIT) as new_data:
             new_data.read(1)
-            bt.PadToAddress(5).goto_addr_and_read(  # type: ignore
-                new_data, context
-            )  # pylint: disable=protected-access
-            bt.PadToAddress(8).goto_addr_and_read(  # type: ignore
+            bt.PadToAddress(5).goto_addr_and_read(new_data, context)
+            bt.PadToAddress(8).goto_addr_and_read(
                 new_data, context
             )  # pylint: disable=protected-access
 
@@ -173,9 +168,7 @@ def test_remnant_bytewise():
     with DataManager(b"123456") as data:
         data.read_bytes(1)
         context = Context()
-        assert (bt.Remnant @ 1 >> "name").read(  # type: ignore
-            data, context
-        ) == b"23456"
+        assert (bt.Remnant @ 1 >> "name").read(data, context) == b"23456"
 
 
 def test_remant_bitwise():
@@ -183,9 +176,7 @@ def test_remant_bitwise():
         context = Context()
         with data.make_child(addr_type=AddrType.BIT) as new_data:
             new_data.read(1)
-            assert (bt.Remnant @ 1 >> "name").read(  # type: ignore
-                new_data, context
-            ) == b"\x70"
+            assert (bt.Remnant @ 1 >> "name").read(new_data, context) == b"\x70"
 
 
 class TestBit:
@@ -195,7 +186,7 @@ class TestBit:
         assert (bt.Bit @ 0 >> "name").parse(b"\x7F") == {"name": False}
 
     def test_reads_bits(self):
-        bk = Block((bt.Bit >> "Bit 0")[8], addr_type=AddrType.BIT)
+        bk = Section(bt.Bit[8] >> "Bit 0", addr_type=AddrType.BIT)
         result = bk.parse(b"\x55")
         assert result == {
             "Bit 0": [
@@ -233,12 +224,12 @@ class TestBitWord:
         self, length: int, offset: int, result: int
     ):
         if offset == 0:
-            bk = Block(
+            bk = Section(
                 bt.BitWord(length) >> "value",
                 addr_type=AddrType.BIT,
             )
         else:
-            bk = Block(
+            bk = Section(
                 bt.BitWord(offset) >> "ignore",
                 bt.BitWord(length) >> "value",
                 addr_type=AddrType.BIT,

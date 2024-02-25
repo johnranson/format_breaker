@@ -2,11 +2,13 @@
 # pylint: disable=missing-class-docstring
 # pylint: disable=missing-function-docstring
 # pylint: disable=protected-access
+# pyright: reportPrivateUsage=false
 
+from typing import Any
 import io
 import pytest
 from formatbreaker.basictypes import Failure
-from formatbreaker.core import Parser, Block, Context, _spacer, Optional
+from formatbreaker.core import Parser, Block, Section, Context, _spacer, Optional
 from formatbreaker.bitwisebytes import BitwiseBytes
 from formatbreaker.datasource import DataManager
 from formatbreaker.exceptions import FBNoDataError
@@ -71,7 +73,7 @@ class TestParser:
             _ = Parser() @ -1 >> "label"
 
     @pytest.fixture
-    def labeled_dt(self):
+    def labeled_dt(self) -> Parser:
         return Parser() @ 3 >> "label"
 
     def test_constructor_with_arguments_saves_label_and_address(
@@ -97,14 +99,14 @@ class TestParser:
             "test 1": "456",
         }
 
-    def test_default_parser_performs_no_op(self, labeled_dt, context):
+    def test_default_parser_performs_no_op(self, labeled_dt: Parser, context: Context):
         with DataManager(b"123567") as data:
             labeled_dt.read(data, context)
 
         assert context == {}
 
     def test_goto_addr_and_read_raises_error_past_required_address(
-        self, labeled_dt, context
+        self, labeled_dt: Parser, context: Context
     ):
         with DataManager(b"123567") as data:
             data.read(5)
@@ -112,7 +114,7 @@ class TestParser:
                 labeled_dt.goto_addr_and_read(data, context)
 
     def test_goto_addr_and_read_does_not_create_spacer_if_at_address(
-        self, labeled_dt, context
+        self, labeled_dt: Parser, context: Context
     ):
         with DataManager(b"123567") as data:
             data.read(3)
@@ -120,7 +122,7 @@ class TestParser:
             assert not bool(context)
 
     def test_goto_addr_and_read_creates_spacer_if_before_required_address(
-        self, labeled_dt, context
+        self, labeled_dt: Parser, context: Context
     ):
         with DataManager(b"123567") as data:
             data.read(1)
@@ -129,73 +131,77 @@ class TestParser:
             assert context["spacer_0x1-0x2"] == b"23"
 
 
-class TestBlock:
+class TestSection:
     class MockType(Parser):
         _default_backup_label = "mock"
 
-        def __init__(self, length=None, value=None) -> None:
+        def __init__(self, length: int | None = None, value: Any = None) -> None:
             self.value = value
             self.length = length
             super().__init__()
 
-        def read(self, data, context):
+        def read(self, data: DataManager, context: Context):
             addr = data.address
             data.read(self.length)
             self._store(context, self.value, addr)
 
     @pytest.fixture
-    def empty_block(self):
-        return Block()
+    def empty_section(self) -> Section:
+        return Section()
 
-    def test_empty_block_returns_empty_dict_on_parsing(self, empty_block):
-        assert empty_block.parse(b"abc") == {}
+    def test_empty_block_returns_empty_dict_on_parsing(self, empty_section: Section):
+        assert empty_section.parse(b"abc") == {}
 
-    def test_block_constructor_fails_with_bad_data(self):
+    def test_section_constructor_fails_with_bad_data(self):
         with pytest.raises(TypeError):
-            Block("test")  # type: ignore
+            Section("test")  # type: ignore
         with pytest.raises(TypeError):
-            Block(relative="true")  # type: ignore
+            Section(relative="true")  # type: ignore
         with pytest.raises(TypeError):
-            Block(addr_type={})  # type: ignore
+            Section(addr_type={})  # type: ignore
 
     @pytest.fixture
-    def sequential_block(self):
-        return Block(
-            TestBlock.MockType(3, "foo"),
-            TestBlock.MockType(5, "bar"),
-            TestBlock.MockType(1, "baz"),
+    def sequential_section(self) -> Section:
+        return Section(
+            TestSection.MockType(3, "foo"),
+            TestSection.MockType(5, "bar"),
+            TestSection.MockType(1, "baz"),
         )
 
-    def test_block_returns_parsing_results_from_all_elements(self, sequential_block):
-        result = sequential_block.parse(b"12354234562")
+    def test_block_returns_parsing_results_from_all_elements(
+        self, sequential_section: Section
+    ):
+        result = sequential_section.parse(b"12354234562")
         assert result == {
             "mock_0x0": "foo",
             "mock_0x3": "bar",
             "mock_0x8": "baz",
         }
 
-    def test_bytewise_block_raises_error_with_bits(self, sequential_block):
+    def test_bytewise_block_raises_error_with_bits(self, sequential_section: Section):
         with pytest.raises(NotImplementedError):
-            sequential_block.parse(BitwiseBytes(b"12354234562"))
+            sequential_section.parse(BitwiseBytes(b"12354234562"))  # type: ignore
 
     def test_block_returns_error_if_parsing_elements_parse_past_end_of_input(
-        self, sequential_block
+        self, sequential_section: Section
     ):
 
         with pytest.raises(FBNoDataError):
-            sequential_block.parse(b"12")
+            sequential_section.parse(b"12")
 
     @pytest.fixture
-    def bitwise_sequential_block(self):
-        return Block(
-            TestBlock.MockType(3, "foo"),
-            TestBlock.MockType(4, "bar"),
-            TestBlock.MockType(1, "baz"),
+    def bitwise_sequential_section(self) -> Section:
+        return Section(
+            TestSection.MockType(3, "foo"),
+            TestSection.MockType(4, "bar"),
+            TestSection.MockType(1, "baz"),
             addr_type="BIT",
         )
 
-    def test_bitwise_block_works_on_bytewise_data(self, bitwise_sequential_block):
-        result = bitwise_sequential_block.parse(b"12354234562")
+    def test_bitwise_block_works_on_bytewise_data(
+        self, bitwise_sequential_section: Section
+    ):
+        result = bitwise_sequential_section.parse(b"12354234562")
         assert result == {
             "mock_0x0": "foo",
             "mock_0x3": "bar",
@@ -203,35 +209,46 @@ class TestBlock:
         }
 
     @pytest.fixture
-    def bitwise_sequential_block_length_9(self):
+    def bitwise_sequential_section_length_9(self) -> Section:
 
-        return Block(
-            Block(
-                TestBlock.MockType(3, "foo"),
-                TestBlock.MockType(5, "bar"),
-                TestBlock.MockType(1, "baz"),
+        return Section(
+            Section(
+                TestSection.MockType(3, "foo"),
+                TestSection.MockType(5, "bar"),
+                TestSection.MockType(1, "baz"),
                 addr_type="BIT",
             )
         )
 
     def test_bitwise_block_parsing_bytewise_data_ending_off_byte_boundary_raises_error(
-        self, bitwise_sequential_block_length_9
+        self, bitwise_sequential_section_length_9: Section
     ):
         with pytest.raises(RuntimeError):
-            bitwise_sequential_block_length_9.parse(b"12354234562")
+            bitwise_sequential_section_length_9.parse(b"12354234562")
 
     @pytest.fixture
-    def addressed_block(self):
-        return Block(
-            TestBlock.MockType(3, "foo"),
-            TestBlock.MockType(5, "bar"),
-            TestBlock.MockType(1, "baz"),
-            TestBlock.MockType(2, "qux") @ 10,
+    def addressed_section(self) -> Section:
+        return Section(
+            TestSection.MockType(3, "foo"),
+            TestSection.MockType(5, "bar"),
+            TestSection.MockType(1, "baz"),
+            TestSection.MockType(2, "qux") @ 10,
         )
 
-    def test_block_gets_spacer_with_addressed_elements(self, addressed_block):
+    @pytest.fixture
+    def addressed_block(self) -> Block:
+        return Block(
+            TestSection.MockType(3, "foo"),
+            TestSection.MockType(5, "bar"),
+            TestSection.MockType(1, "baz"),
+            TestSection.MockType(2, "qux") @ 10,
+        )
 
-        result = addressed_block.parse(b"\0" * 100)
+    def test_section_gets_spacer_with_addressed_elements(
+        self, addressed_section: Section
+    ):
+
+        result = addressed_section.parse(b"\0" * 100)
 
         assert result == {
             "mock_0x0": "foo",
@@ -241,15 +258,18 @@ class TestBlock:
             "mock_0xa": "qux",
         }
 
-    def test_nested_blocks_produce_expected_results(self, addressed_block):
-        cnk = Block(
-            addressed_block,
+    def test_nested_blocks_produce_expected_results(
+        self, addressed_section: Section, addressed_block: Block
+    ):
+        cnk = Section(
+            addressed_section,
             addressed_block >> "label",
             addressed_block @ 40 >> "label",
-            addressed_block @ 60,
+            addressed_section @ 60,
         )
 
         result = cnk.parse(bytes(range(256)))
+        print(result)
 
         assert result == {
             "mock_0x0": "foo",
@@ -280,14 +300,16 @@ class TestBlock:
             "mock_0xa 1": "qux",
         }
 
-    def test_optional_blocks_work(self, addressed_block: Block):
-        cnk = Block(
-            addressed_block,
+    def test_optional_blocks_work(
+        self, addressed_section: Section, addressed_block: Block
+    ):
+        cnk = Section(
+            addressed_section,
             Optional(
                 addressed_block >> "opt",
                 addressed_block @ 40 >> "opt",
                 Block(
-                    addressed_block @ 60,
+                    addressed_section @ 60,
                     Failure,
                     relative=False,
                 ),
@@ -295,7 +317,7 @@ class TestBlock:
             ),
             addressed_block >> "label",
             addressed_block @ 40 >> "label",
-            addressed_block @ 60,
+            addressed_section @ 60,
         )
         result = cnk.parse(bytes(range(256)))
 
@@ -350,14 +372,16 @@ class TestSpacer:
     def context(self):
         return Context()
 
-    def test_spacer_generates_expected_dictionary_and_return_value(self, context):
+    def test_spacer_generates_expected_dictionary_and_return_value(
+        self, context: Context
+    ):
         with DataManager(spacer_data) as data:
             data.read(1)
             _spacer(data, context, 6)
             assert context["spacer_0x1-0x5"] == bytes(spacer_data[1:6])
 
     def test_duplicate_spacer_generates_expected_dictionary_and_return_value(
-        self, context
+        self, context: Context
     ):
         with DataManager(spacer_data) as data:
             context["spacer_0x1-0x5"] = bytes(spacer_data[1:6])
@@ -365,22 +389,22 @@ class TestSpacer:
             _spacer(data, context, 6)
             assert context["spacer_0x1-0x5 1"] == bytes(spacer_data[1:6])
 
-    def test_spacer_works_with_entire_input(self, context):
+    def test_spacer_works_with_entire_input(self, context: Context):
         with DataManager(spacer_data) as data:
             _spacer(data, context, 128)
             assert context["spacer_0x0-0x7f"] == bytes(spacer_data)
 
-    def test_length_one_beyond_input_size_raises_error(self, context):
+    def test_length_one_beyond_input_size_raises_error(self, context: Context):
         with DataManager(spacer_data) as data:
             with pytest.raises(FBNoDataError):
                 _spacer(data, context, 129)
 
-    def test_negative_address_raises_error(self, context):
+    def test_negative_address_raises_error(self, context: Context):
         with DataManager(spacer_data) as data:
             with pytest.raises(IndexError):
                 _spacer(data, context, -1)
 
-    def test_zero_length_spacer_is_no_op(self, context):
+    def test_zero_length_spacer_is_no_op(self, context: Context):
         with DataManager(spacer_data) as data:
             _spacer(data, context, 0)
             assert context == {}
