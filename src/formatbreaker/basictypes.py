@@ -6,7 +6,7 @@ by only implementing __init__ and _decode, it should not go here.
 """
 
 from __future__ import annotations
-from typing import override, ClassVar
+from typing import override, ClassVar, Any
 from formatbreaker.core import Parser, Context, Success, ParseResult
 from formatbreaker.datasource import DataManager, AddrType
 from formatbreaker.exceptions import FBError
@@ -138,7 +138,7 @@ class PadToAddress(Parser):
         super().__init__()
         self._address = addr
 
-    def read(self, *args, **kwargs) -> type[ParseResult]:
+    def read(self, *args: Any, **kwargs: Any) -> type[ParseResult]:
         # pylint: disable=unused-argument
         return Success
 

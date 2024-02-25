@@ -8,7 +8,15 @@ from typing import Any
 import io
 import pytest
 from formatbreaker.basictypes import Failure
-from formatbreaker.core import Parser, Block, Section, Context, Success, _spacer, Optional
+from formatbreaker.core import (
+    Parser,
+    Block,
+    Section,
+    Context,
+    Success,
+    _spacer,
+    Optional,
+)
 from formatbreaker.bitwisebytes import BitwiseBytes
 from formatbreaker.datasource import DataManager
 from formatbreaker.exceptions import FBNoDataError
@@ -42,7 +50,7 @@ class TestContext:
 
 
 class ConcreteParser(Parser):
-    def read(self, *args, **kwargs) -> None:
+    def read(self, *args: Any, **kwargs: Any) -> None:
         # pylint: disable=unused-argument
         return Success
 
@@ -147,9 +155,8 @@ class TestSection:
             super().__init__()
 
         def read(self, data: DataManager, context: Context):
-            addr = data.address
             data.read(self.length)
-
+            return self.value
 
     @pytest.fixture
     def empty_section(self) -> Section:
