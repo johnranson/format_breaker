@@ -1,7 +1,7 @@
-"""Decoding and Translating Parsers
+"""Parsers that don't directly read data
 
-The classes in this module add functionality to existing parsers by adding
-`_decode()` logic. They only implement _decode (and _init, if needed.)
+The classes in this module add functionality to existing parsers, and don't directly
+read data from the DataManager
 """
 
 from __future__ import annotations
@@ -14,15 +14,18 @@ from formatbreaker.exceptions import FBError
 from formatbreaker.bitwisebytes import BitwiseBytes
 
 
-class ByteFlag(Modifier):
+class Flag(Modifier):
     """Reads as a boolean"""
 
-    _true_value: int | None
+    _true_value: Any | None
+    _false_value: Any | None
 
-    def __init__(self, true_value: Any = None, false_value: Any = b"\0") -> None:
+    def __init__(
+        self, parser: Parser, false_value: Any, true_value: Any = None
+    ) -> None:
         if true_value == false_value:
             raise ValueError
-        super().__init__(Byte, "Flag")
+        super().__init__(parser, "Flag")
         self._true_value = true_value
         self._false_value = false_value
 
@@ -35,6 +38,10 @@ class ByteFlag(Modifier):
         if data == self._true_value:
             return True
         raise FBError()
+
+
+def ByteFlag(true_value: Any = None):
+    return Flag(Byte, b"\0", true_value)
 
 
 class BitFlags(BitWord):
