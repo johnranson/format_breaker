@@ -14,8 +14,52 @@ from formatbreaker.util import validate_address_or_length
 from formatbreaker.datasource import DataManager, AddrType
 
 
+class Context(collections.ChainMap[str, Any]):
+    """Contains the results from parsing in a nested manner, allowing reverting failed
+    optional data reads"""
+
+    def __setitem__(self, key: str, value: Any) -> None:
+        """Sets the underlying ChainMap value but updates duplicate keys
+
+        Args:
+            key: _description_
+            value: _description_
+        """
+        parts = key.split(" ")
+        if parts[-1].isnumeric():
+            base = " ".join(parts[0:-1])
+            i = int(parts[-1])
+            new_key = base + " " + str(i)
+        else:
+            base = key
+            i = 1
+            new_key = key
+
+        while new_key in self:
+            new_key = base + " " + str(i)
+            i = i + 1
+        super().__setitem__(new_key, value)
+
+    def update_ext(self) -> None:
+        """Loads all of the current Context values into the parent Context"""
+        if len(self.maps) == 1:
+            raise RuntimeError
+        self.maps[1].update(self.maps[0])
+        self.maps[0].clear()
+
+
+type Contexts = tuple[Context, ...]
+
+
+def get_from_contexts(contexts: Contexts, key: str):
+    for context in contexts:
+        if key in context:
+            return context[key]
+    raise KeyError
+
+
 class ParseResult:
-    """Returned by Parser.read() when there is no data to return """
+    """Returned by Parser.read() when there is no data to return"""
 
 
 class Reverted(ParseResult):
@@ -78,11 +122,7 @@ class Parser(ABC):
         self._backup_label = self._default_backup_label
 
     @abstractmethod
-    def read(
-        self,
-        data: DataManager,
-        context: Context,
-    ) -> Any:
+    def read(self, data: DataManager, contexts: Contexts) -> Any:
         """Parses data
 
         Should be overridden by any subclass that reads data. Does
@@ -94,7 +134,7 @@ class Parser(ABC):
         """
 
     def goto_addr_and_read(
-        self, data: DataManager, context: Context
+        self, data: DataManager, contexts: Contexts
     ) -> type[ParseResult]:
         """Reads to the target location and then parses normally
 
@@ -104,9 +144,9 @@ class Parser(ABC):
                 containing Block
         """
         if self._address is not None:
-            _spacer(data, context, self._address)
+            _spacer(data, contexts[0], self._address)
         addr = data.address
-        result = self.read_and_translate(data, context)
+        result = self.read_and_translate(data, contexts)
         if result is Reverted:
             return Reverted
         if isinstance(result, Context):
@@ -114,16 +154,16 @@ class Parser(ABC):
         elif result is None:
             raise ValueError
         elif result is not Success:
-            self._store(context, result, addr)
+            self._store(contexts[0], result, addr)
         return Success
 
     def read_and_translate(
         self,
         data: DataManager,
-        context: Context,
+        contexts: Contexts,
     ) -> Any:
 
-        result = self.read(data, context)
+        result = self.read(data, contexts)
         if result is Reverted:
             return Reverted
         return self.translate(result)
@@ -139,7 +179,7 @@ class Parser(ABC):
         """
         context = Context()
         with DataManager(src=data, addr_type=self._addr_type) as manager:
-            self.goto_addr_and_read(manager, context)
+            self.goto_addr_and_read(manager, (context,))
             return dict(context)
         return {}
 
@@ -260,7 +300,7 @@ class Block(Parser):
     def read(
         self,
         data: DataManager,
-        context: Context,
+        contexts: Contexts,
     ) -> dict[str, Any] | type[ParseResult]:
         """Parse the data using each Parser sequentially.
 
@@ -278,7 +318,7 @@ class Block(Parser):
         ) as new_data:
             out_context = Context()
             for element in self._elements:
-                element.goto_addr_and_read(new_data, out_context)
+                element.goto_addr_and_read(new_data, (out_context, *contexts))
             return dict(out_context)
         return Reverted
 
@@ -290,7 +330,7 @@ class Section(Block):
     def read(
         self,
         data: DataManager,
-        context: Context,
+        contexts: Contexts,
     ) -> Context | type[ParseResult]:
         """Parse the data using each Parser sequentially.
 
@@ -306,10 +346,10 @@ class Section(Block):
             addr_type=self._addr_type,
             revertible=self._optional,
         ) as new_data:
-            out_context = context.new_child()
+            out_context = contexts[0].new_child()
             for element in self._elements:
-                element.goto_addr_and_read(new_data, out_context)
-                
+                element.goto_addr_and_read(new_data, (out_context, *contexts[1:]))
+
             print(out_context)
             return out_context
         return Reverted
@@ -352,40 +392,6 @@ def _spacer(
     context[spacer_label] = data.read(length)
 
 
-class Context(collections.ChainMap[str, Any]):
-    """Contains the results from parsing in a nested manner, allowing reverting failed
-    optional data reads"""
-
-    def __setitem__(self, key: str, value: Any) -> None:
-        """Sets the underlying ChainMap value but updates duplicate keys
-
-        Args:
-            key: _description_
-            value: _description_
-        """
-        parts = key.split(" ")
-        if parts[-1].isnumeric():
-            base = " ".join(parts[0:-1])
-            i = int(parts[-1])
-            new_key = base + " " + str(i)
-        else:
-            base = key
-            i = 1
-            new_key = key
-
-        while new_key in self:
-            new_key = base + " " + str(i)
-            i = i + 1
-        super().__setitem__(new_key, value)
-
-    def update_ext(self) -> None:
-        """Loads all of the current Context values into the parent Context"""
-        if len(self.maps) == 1:
-            raise RuntimeError
-        self.maps[1].update(self.maps[0])
-        self.maps[0].clear()
-
-
 class Modifier(Parser):
     __slots__ = ["_parser"]
     _parser: Parser
@@ -406,7 +412,7 @@ class Modifier(Parser):
     def read(
         self,
         data: DataManager,
-        context: Context,
+        contexts: Contexts,
     ) -> Any:
         """Parses data
 
@@ -414,7 +420,7 @@ class Modifier(Parser):
             data: Data being parsed
             context: Where results old results are stored
         """
-        return self._parser.read_and_translate(data, context)
+        return self._parser.read_and_translate(data, contexts)
 
 
 class Translator(Modifier):
@@ -446,7 +452,7 @@ class Repeat(Modifier):
     def read(
         self,
         data: DataManager,
-        context: Context,
+        contexts: Contexts,
     ) -> Context:
         """Parse the data using each Parser sequentially.
 
@@ -458,13 +464,13 @@ class Repeat(Modifier):
         """
 
         if isinstance(self._repeat_qty, str):
-            reps = context[self._repeat_qty]
+            reps = get_from_contexts(contexts, self._repeat_qty)
         if isinstance(self._repeat_qty, int):
             reps = self._repeat_qty
         else:
             raise ValueError
 
-        results = context.new_child()
+        results = contexts[0].new_child()
 
         for _ in range(reps):
             with data.make_child(
@@ -474,7 +480,7 @@ class Repeat(Modifier):
             ) as new_data:
                 addr = new_data.address
                 out_context = results.new_child()
-                result = self._parser.read_and_translate(new_data, context)
+                result = self._parser.read_and_translate(new_data, contexts)
                 if result is Reverted:
                     continue
                 elif isinstance(result, Context):
@@ -497,7 +503,7 @@ class Array(Modifier):
     def read(
         self,
         data: DataManager,
-        context: Context,
+        contexts: Contexts,
     ) -> list[Any] | type[ParseResult]:
         """Parse the data using each Parser sequentially.
 
@@ -509,7 +515,7 @@ class Array(Modifier):
         """
 
         if isinstance(self._repeat_qty, str):
-            reps = context[self._repeat_qty]
+            reps = get_from_contexts(contexts, self._repeat_qty)
         if isinstance(self._repeat_qty, int):
             reps = self._repeat_qty
         else:
@@ -523,7 +529,9 @@ class Array(Modifier):
                 revertible=False,
             ) as new_data:
                 out_context = Context()
-                result = self._parser.read_and_translate(new_data, out_context)
+                result = self._parser.read_and_translate(
+                    new_data, (out_context, *contexts[1:])
+                )
                 if result is Reverted:
                     results.append([])
                 elif isinstance(result, Context):

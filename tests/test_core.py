@@ -13,9 +13,11 @@ from formatbreaker.core import (
     Block,
     Section,
     Context,
+    Contexts,
     Success,
     _spacer,
     Optional,
+    ParseResult
 )
 from formatbreaker.bitwisebytes import BitwiseBytes
 from formatbreaker.datasource import DataManager
@@ -50,7 +52,7 @@ class TestContext:
 
 
 class ConcreteParser(Parser):
-    def read(self, *args: Any, **kwargs: Any) -> None:
+    def read(self, *args: Any, **kwargs: Any) -> type[ParseResult]:
         # pylint: disable=unused-argument
         return Success
 
@@ -115,7 +117,7 @@ class TestParser:
 
     def test_default_parser_performs_no_op(self, labeled_dt: Parser, context: Context):
         with DataManager(b"123567") as data:
-            labeled_dt.read(data, context)
+            labeled_dt.read(data, (context,))
 
         assert context == {}
 
@@ -125,14 +127,14 @@ class TestParser:
         with DataManager(b"123567") as data:
             data.read(5)
             with pytest.raises(IndexError):
-                labeled_dt.goto_addr_and_read(data, context)
+                labeled_dt.goto_addr_and_read(data, (context,))
 
     def test_goto_addr_and_read_does_not_create_spacer_if_at_address(
         self, labeled_dt: Parser, context: Context
     ):
         with DataManager(b"123567") as data:
             data.read(3)
-            labeled_dt.goto_addr_and_read(data, context)
+            labeled_dt.goto_addr_and_read(data, (context,))
             assert not bool(context)
 
     def test_goto_addr_and_read_creates_spacer_if_before_required_address(
@@ -140,7 +142,7 @@ class TestParser:
     ):
         with DataManager(b"123567") as data:
             data.read(1)
-            labeled_dt.goto_addr_and_read(data, context)
+            labeled_dt.goto_addr_and_read(data, (context,))
 
             assert context["spacer_0x1-0x2"] == b"23"
 
@@ -154,7 +156,7 @@ class TestSection:
             self.length = length
             super().__init__()
 
-        def read(self, data: DataManager, context: Context):
+        def read(self, data: DataManager, contexts: Contexts):
             data.read(self.length)
             return self.value
 
@@ -421,3 +423,4 @@ class TestSpacer:
         with DataManager(spacer_data) as data:
             _spacer(data, context, 0)
             assert context == {}
+
