@@ -118,7 +118,7 @@ UInt16B = IntParser(2, "big", signed=False)
 def DeStructor(
     fmt: str, backup_label: str | None = None
 ):  # pylint: disable=invalid-name
-    """Creates a parser instance that interprets a number of bytes using a struct format string
+    """Creates a parser instance using a struct format string
 
     Args:
         backup_label: What the parser output is labeled in absence of a label

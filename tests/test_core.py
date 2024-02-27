@@ -68,7 +68,7 @@ class TestParser:
         return Context()
 
     def test_constructor_defaults_to_no_label_and_address(
-        self, default_dt: Parser, context: Context
+        self, default_dt: Parser
     ):
 
         assert default_dt._label is None
