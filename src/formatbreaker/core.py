@@ -5,7 +5,7 @@ data storage) code"""
 # pyright: reportUnnecessaryIsInstance=false
 
 from __future__ import annotations
-from typing import ClassVar, Any, override, Callable
+from typing import ClassVar, Any, override, Callable, final
 from abc import ABC, abstractmethod
 import copy
 import io
@@ -19,11 +19,11 @@ class Context(collections.ChainMap[str, Any]):
     optional data reads"""
 
     def __setitem__(self, key: str, value: Any) -> None:
-        """Sets the underlying ChainMap value but updates duplicate keys
+        """Sets the underlying ChainMap value but renames duplicate keys
 
         Args:
-            key: _description_
-            value: _description_
+            key: A string dictionary key
+            value: The value to store with the given `key`
         """
         parts = key.split(" ")
         if parts[-1].isnumeric():
@@ -49,13 +49,76 @@ class Context(collections.ChainMap[str, Any]):
 
 
 type Contexts = tuple[Context, ...]
+# This is a list of all contexts created since parse() was called
+# in order of newest to oldest. It only intended to include contexts
+# that have no parent-child relationship. When a new child is created
+# for the most recent context, it should just replace the parent if
+# it is passed in a Contexts tuple.
+# When a Block or Array is parsed, we have to create a new context
+# in the elements store their results. The new context is not a child of
+# a previous contexts, but the elements of the block or array may
+# need to reference values in previous contexts. Thus, we pass around
+# this tuple of all past contexts, allowing any parser to reference any
+# data stored at any time during the parsing.
 
 
-def get_from_contexts(contexts: Contexts, key: str):
-    for context in contexts:
-        if key in context:
-            return context[key]
-    raise KeyError
+def get_from_contexts(contexts: Contexts, key: str | tuple):
+    """Fetches a value from the past Contexts
+
+    If a string key is provided, it returns the first value it can
+    find for that key, searching contexts from newest to oldes
+
+    If a tuple is provided, it should be an integer n followed by
+    any number of string or integer keys. It will then recursively
+    lookup the keys in order in the nth context, allowing reading
+    a value from any dictionary or list stored therein.
+
+    Args:
+        contexts: A tuple of contexts
+        key: A string key for a simple lookup, or a tuple containing an integer and any
+        number of keys.
+
+        get_from_contexts(con, (n, A, B, C, D, ...)) ==
+        con[n][A][B][C][D]...
+    Returns:
+        The value retrieved from the `contexts`
+    """
+    if isinstance(key, str):
+        for context in contexts:
+            if key in context:
+                return context[key]
+        raise KeyError
+    if isinstance(key, tuple):
+        result = contexts
+        for subkey in key:
+            result = result[subkey]
+        return result
+
+
+def _spacer(
+    data: DataManager,
+    context: Context,
+    stop_addr: int,
+):
+    """Reads a spacer into a context dictionary
+
+    Args:
+        data: The data being parsed
+        context: Where results are stored
+        stop_addr: The address of the first bit or byte in `data_source` to be excluded
+
+    """
+    start_addr = data.address
+    length = stop_addr - start_addr
+
+    if length == 0:
+        return
+    if length > 1:
+        spacer_label = "spacer_" + hex(start_addr) + "-" + hex(stop_addr - 1)
+    else:
+        spacer_label = "spacer_" + hex(start_addr)
+
+    context[spacer_label] = data.read(length)
 
 
 class ParseResult:
@@ -73,13 +136,13 @@ class Success(ParseResult):
 class Parser(ABC):
     """This is the basic parser implementation that most parsers inherit from"""
 
-    __slots__ = ("__label", "__addr_type", "__address", "_backup_label")
-
-    _default_backup_label: ClassVar[str | None] = None
-    _default_addr_type: ClassVar[AddrType] = AddrType.UNDEFINED
+    __slots__ = ("__label", "_backup_label", "__addr_type", "__address")
     __label: str | None
-    __address: int | None
+    _backup_label: str
+    _default_backup_label: ClassVar[str] = "Data"
     __addr_type: AddrType
+    _backup_addr_type: ClassVar[AddrType] = AddrType.BYTE
+    __address: int | None
 
     @property
     def _label(self) -> str | None:
@@ -117,31 +180,55 @@ class Parser(ABC):
     def __init__(self) -> None:
         self.__address = None
         self.__label = None
-        self._addr_type = self._default_addr_type
-
+        self._addr_type = AddrType.PARENT
         self._backup_label = self._default_backup_label
 
     @abstractmethod
     def read(self, data: DataManager, contexts: Contexts) -> Any:
-        """Parses data
+        """Reads data from the current address
 
-        Should be overridden by any subclass that reads data. Does
-        nothing and returns None by default.
+        Must be overridden by any subclass
 
         Args:
-            data: Data being parsed
-            context: Where results old results are stored
+            data: The data currently being parsed
+            contexts: Past stored parsing results
+
+        Returns:
+            The data read
         """
 
+    @final
+    def read_and_translate(
+        self,
+        data: DataManager,
+        contexts: Contexts,
+    ) -> Any:
+        """Reads and translates data from the current address
+
+        Args:
+            data: The data currently being parsed
+            contexts: Past stored parsing results
+
+        Returns:
+            Translated data read
+        """
+        result = self.read(data, contexts)
+        if result is Reverted:
+            return Reverted
+        return self.translate(result)
+
+    @final
     def goto_addr_and_read(
         self, data: DataManager, contexts: Contexts
     ) -> type[ParseResult]:
-        """Reads to the target location and then parses normally
+        """Reads to the target address, and then read, translate and store results
 
         Args:
-            data: Data being parsed
-            context: Where results are stored including prior results in the same
-                containing Block
+            data: The data currently being parsed
+            contexts: Past stored parsing results. Where new results are stored.
+
+        Returns:
+            An indicator of how the parsing went
         """
         if self._address is not None:
             _spacer(data, contexts[0], self._address)
@@ -157,17 +244,7 @@ class Parser(ABC):
             self._store(contexts[0], result, addr)
         return Success
 
-    def read_and_translate(
-        self,
-        data: DataManager,
-        contexts: Contexts,
-    ) -> Any:
-
-        result = self.read(data, contexts)
-        if result is Reverted:
-            return Reverted
-        return self.translate(result)
-
+    @final
     def parse(
         self,
         data: bytes | io.BufferedIOBase,
@@ -175,20 +252,28 @@ class Parser(ABC):
         """Parse the provided data from the beginning
 
         Args:
-            data: Data being parsed
+            data: The data to be parsed
+
+        Returns:
+            A dictionary of the results.
         """
+
         context = Context()
-        with DataManager(src=data, addr_type=self._addr_type) as manager:
+        if self._addr_type == AddrType.PARENT:
+            addr_type = self._backup_addr_type
+        else:
+            addr_type = self._addr_type
+        with DataManager(src=data, addr_type=addr_type) as manager:
             self.goto_addr_and_read(manager, (context,))
             return dict(context)
         return {}
 
+    @final
     def _store(
         self,
         context: Context,
         data: Any,
         addr: int | None = None,
-        label: str | None = None,
     ) -> None:
         """Store the value with a unique key
 
@@ -197,62 +282,80 @@ class Parser(ABC):
         attribute.
 
         Args:
-            context: Where results are stored including prior results in the same
-                containing Block
-            data: The data to be decoded and stored
+            context: Where results are to be stored
+            data: The data to be stored
             addr: The location the data came from, used for unlabeled fields
-            label: The label to store the data under.
         """
-
-        if label:
-            pass
-        elif self._label:
+        if self._label:
             label = self._label
-        elif self._backup_label:
-            if addr is not None:
-                label = self._backup_label + "_" + hex(addr)
-            else:
-                label = self._backup_label
         else:
-            raise RuntimeError("Attempted to store unlabeled data")
+            label = self._backup_label
+            if addr is not None:
+                label = label + "_" + hex(addr)
         context[label] = data
-
-    def _update(self, context: Context, data: Context):
-        """Decode a dictionary and update into another dictionary
-
-        Args:
-            context: Where to store the results
-            data: The data to be decoded and stored
-        """
-        for key in data:
-            self._store(context, data[key], label=key)
 
     def translate(self, data: Any) -> Any:
         """Converts parsed data to another format
 
         Defaults to passing through the data unchanged.
-        This should be overridden as needed by subclasses.
+        This may be overridden as needed by subclasses.
 
         Args:
-            data: Input data from parsing and previous decoding steps
+            data: Input data from reading
 
         Returns:
             Translated output data
         """
         return data
 
+    @final
     def __getitem__(self, qty: int):
+        """Makes bracket notation create an array of this Parser
+
+        Args:
+            qty: Number of repetitions in the array
+
+        Returns:
+            An Array of this Parser
+        """
         return Array(self, qty)
 
+    @final
     def __mul__(self, qty: int):
+        """Makes the * operator repeat a Parser
+
+        Args:
+            qty: Number of repetitions
+
+        Returns:
+            An Repeat of this instance
+        """
         return Repeat(self, qty)
 
+    @final
     def __matmul__(self, addr: int):
+        """Makes the @ operator assign an address
+
+        Args:
+            addr: The new address
+
+        Returns:
+            A copy of this instance with the address set
+        """
         b = copy.copy(self)
         b._address = addr
         return b
 
+    @final
     def __rshift__(self, label: str):
+        """Makes the >> operator assign a label
+
+        Args:
+            label: The new label
+
+        Returns:
+            A copy of this instance with the label set
+        """
         if not isinstance(label, str):
             raise TypeError
         b = copy.copy(self)
@@ -260,30 +363,26 @@ class Parser(ABC):
         return b
 
 
-class Block(Parser):
-    """A container that holds ordered data fields and provides a mechanism for
-    parsing them in order"""
+class MultiElement(Parser):
+    """A parser that contains other parsers."""
 
-    __slots__ = ("_relative", "_elements", "_optional")
-
+    __slots__ = ("_relative", "_elements")
     _relative: bool
     _elements: tuple[Parser, ...]
-    _optional: bool
-    _default_backup_label: ClassVar[str | None] = "Block"
 
     def __init__(
         self,
         *elements: Parser,
         relative: bool = True,
         addr_type: AddrType | str = AddrType.PARENT,
-        optional: bool = False,
     ) -> None:
         """
         Args:
-            *args: Parsers this Block should hold, in order.
-            relative: If True, addresses for `self.elements` are relative to this Block.
-            bitwise: If True, `self.elements` is addressed and parsed bitwise
-            **kwargs: Arguments to be passed to the superclass constructor
+            *elements: Parsers this instance should hold, in order.
+            relative: If True, addresses for `self.elements` are relative to this
+                instance.
+            addr_type: The way addresses for `self.elements` should be interpreted
+                ie. bitwise or bytewise
         """
         super().__init__()
         if not isinstance(relative, bool):
@@ -294,7 +393,14 @@ class Block(Parser):
         self._addr_type = addr_type
         self._elements = elements
         self._relative = relative
-        self._optional = optional
+
+
+class Block(MultiElement):
+    """A parser that contains other parsers. The parsers are executed in order and the
+    results stored in a new context. The new context is stored as a dictionary in the
+    existing context after parsing."""
+
+    _default_backup_label: ClassVar[str] = "Block"
 
     @override
     def read(
@@ -305,16 +411,15 @@ class Block(Parser):
         """Parse the data using each Parser sequentially.
 
         Args:
-            data: Data being parsed
-            context: Where results are stored including prior results in the same
-                containing Block
-            addr: The bit or byte address in `data` where the Data being parsed lies.
+            data: The data currently being parsed
+            contexts: Past stored parsing results
+
+        Returns:
+            A dictionary of the results to be stored as a dict
         """
 
         with data.make_child(
-            relative=self._relative,
-            addr_type=self._addr_type,
-            revertible=self._optional,
+            relative=self._relative, addr_type=self._addr_type
         ) as new_data:
             out_context = Context()
             for element in self._elements:
@@ -323,8 +428,37 @@ class Block(Parser):
         return Reverted
 
 
-class Section(Block):
-    _default_backup_label: ClassVar[str | None] = "Section"
+class Section(MultiElement):
+    """A parser that contains other parsers. The parsers are executed in order and the
+    results stored in a child context. The child context is updated into the parent
+    context after parsing."""
+
+    __slots__ = ("_optional",)
+    _default_backup_label: ClassVar[str] = "Section"
+    _optional: bool
+
+    def __init__(
+        self,
+        *elements: Parser,
+        relative: bool = True,
+        addr_type: AddrType | str = AddrType.PARENT,
+        optional: bool = False,
+    ) -> None:
+        """
+        Args:
+            *elements: Parsers this Block should hold, in order.
+            relative: If True, addresses for `self.elements` are relative to this
+                Block.
+            addr_type: The way addresses for `self.elements` should be interpreted
+                ie. bitwise or bytewise
+            optional: If True, if any of the contained elements fail to parse, the Block
+                acts as a no-op and reverts the state of the data to when it started.
+                Optional blocks may be nested. Only the innermost optional block will
+                no-op and revert for a given failure
+
+        """
+        super().__init__(*elements, relative=relative, addr_type=addr_type)
+        self._optional = optional
 
     @override
     def read(
@@ -332,15 +466,19 @@ class Section(Block):
         data: DataManager,
         contexts: Contexts,
     ) -> Context | type[ParseResult]:
-        """Parse the data using each Parser sequentially.
-
-        Args:
-            data: Data being parsed
-            context: Where results are stored including prior results in the same
-                containing Block
-            addr: The bit or byte address in `data` where the Data being parsed lies.
         """
+        Args:
+            *elements: Parsers this Section should hold, in order.
+            relative: If True, addresses for `self.elements` are relative to this
+                Section.
+            addr_type: The way addresses for `self.elements` should be interpreted
+                ie. bitwise or bytewise
+            optional: If True, if any of the contained elements fail to parse, the
+                Section acts as a no-op and reverts the state of the data to when it
+                started. Optional sections may be nested. Only the innermost optional
+                block will no-op and revert for a given failure
 
+        """
         with data.make_child(
             relative=self._relative,
             addr_type=self._addr_type,
@@ -356,43 +494,21 @@ class Section(Block):
 
 
 def Optional(*args: Any, **kwargs: Any) -> Section:  # pylint: disable=invalid-name
-    """Shorthand for generating an optional `Block`.
+    """Shorthand for generating an optional `Section`.
 
-    Takes the same arguments as a `Block`.
+    Takes the same arguments as a `Section`.
 
     Returns:
-        An optional `Block`
+        An optional `Section`
     """
     return Section(*args, optional=True, **kwargs)
 
 
-def _spacer(
-    data: DataManager,
-    context: Context,
-    stop_addr: int,
-):
-    """Reads a spacer into a context dictionary
-
-    Args:
-        data: Data being parsed
-        context: Where results are stored
-        stop_addr: The address of the first bit or byte in `data_source` to be excluded
-
-    """
-    start_addr = data.address
-    length = stop_addr - start_addr
-
-    if length == 0:
-        return
-    if length > 1:
-        spacer_label = "spacer_" + hex(start_addr) + "-" + hex(stop_addr - 1)
-    else:
-        spacer_label = "spacer_" + hex(start_addr)
-
-    context[spacer_label] = data.read(length)
-
-
 class Modifier(Parser):
+    """A Parser that contains an instance of another Parser and copies its behavior
+    with modifications.
+    """
+
     __slots__ = ["_parser"]
     _parser: Parser
 
@@ -424,6 +540,9 @@ class Modifier(Parser):
 
 
 class Translator(Modifier):
+    """A Modifier that runs an additional translation function on the output
+    of another Parser
+    """
 
     __slots__ = ["_translate_func"]
 
@@ -441,6 +560,8 @@ class Translator(Modifier):
 
 
 class Repeat(Modifier):
+    """A Modifier that acts as if the contained Parser were parsed multiple times."""
+
     __slots__ = ["_repeat_qty"]
 
     def __init__(self, parser: Parser, repeat_qty: int | str) -> None:
@@ -492,6 +613,10 @@ class Repeat(Modifier):
 
 
 class Array(Modifier):
+    """A Modifier that creates a list of results during parsing by reading the
+    contained Parser several times.
+    """
+
     __slots__ = ["_repeat_qty"]
 
     def __init__(self, parser: Parser, repeat_qty: int | str) -> None:

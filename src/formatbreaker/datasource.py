@@ -21,7 +21,6 @@ class AddrType(Enum):
     BYTE = 2
     BYTE_STRICT = 3
     PARENT = 4
-    UNDEFINED = 5
 
 
 DATA_BUFFER_SIZE = 1024 * 8
@@ -274,8 +273,6 @@ class DataManager:
             revertible: Whether the reads to this AddressManager and its children can
             fail and be reverted
         """
-        if addr_type == AddrType.UNDEFINED:
-            raise ValueError
         self._with_safe = False
         self._revertible = revertible
         self._has_child = False

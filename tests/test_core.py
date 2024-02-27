@@ -17,7 +17,7 @@ from formatbreaker.core import (
     Success,
     _spacer,
     Optional,
-    ParseResult
+    ParseResult,
 )
 from formatbreaker.bitwisebytes import BitwiseBytes
 from formatbreaker.datasource import DataManager
@@ -74,9 +74,6 @@ class TestParser:
         assert default_dt._label is None
         assert default_dt._address is None
 
-        with pytest.raises(RuntimeError):
-            default_dt._store(context, "123")
-
     def test_bad_constructor_types_raise_exceptions(self):
         with pytest.raises(TypeError):
             _ = ConcreteParser() @ "1" >> "label"  # type: ignore
@@ -98,22 +95,6 @@ class TestParser:
         assert labeled_dt._label == "label"
         assert labeled_dt._address == 3
         assert labeled_dt.translate("123") == "123"
-
-    def test_repeated_storing_and_updating_produces_expected_dictionary(
-        self, labeled_dt: Parser, context: Context
-    ):
-        labeled_dt._store(context, "123")
-        labeled_dt._store(context, "456")
-        labeled_dt._update(context, Context({"test": "123"}))
-        labeled_dt._update(context, Context({"test": "456"}))
-        labeled_dt._update(context, Context({}))
-
-        assert context == {
-            "label": "123",
-            "label 1": "456",
-            "test": "123",
-            "test 1": "456",
-        }
 
     def test_default_parser_performs_no_op(self, labeled_dt: Parser, context: Context):
         with DataManager(b"123567") as data:
@@ -423,4 +404,3 @@ class TestSpacer:
         with DataManager(spacer_data) as data:
             _spacer(data, context, 0)
             assert context == {}
-

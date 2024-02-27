@@ -5,7 +5,7 @@ read data from the DataManager
 """
 
 from __future__ import annotations
-from typing import override, Any, Literal
+from typing import override, Any, Literal, ClassVar
 import struct
 import uuid
 from formatbreaker.basictypes import Byte, Bytes, BitWord, Bit
@@ -40,14 +40,22 @@ class Flag(Modifier):
         raise FBError()
 
 
-def ByteFlag(true_value: Any = None):
+def ByteFlag(true_value: Any = None) -> Parser:  # pylint: disable=invalid-name
+    """Creates a parser that interprets a byte as a boolean
+
+    Args:
+        true_value: The only value interpreted as true, if set
+
+    Returns:
+        A parser instance
+    """
     return Flag(Byte, b"\0", true_value)
 
 
 class BitFlags(BitWord):
-    """Reads a number of bits from the data"""
+    """Reads a number of bits from the data as booleans"""
 
-    _default_backup_label = "Flags"
+    _default_backup_label: ClassVar[str] = "Flags"
 
     @override
     def translate(self, data: BitwiseBytes) -> list[bool]:  # type: ignore[override]
@@ -55,7 +63,9 @@ class BitFlags(BitWord):
 
 
 class BitUInt(BitWord):
-    _default_backup_label = "UInt"
+    """Reads a number of bits from the data as an unsigned integer"""
+
+    _default_backup_label: ClassVar[str] = "UInt"
 
     @override
     def translate(self, data: BitwiseBytes) -> int:
@@ -70,7 +80,19 @@ class BitUInt(BitWord):
         return int(data)
 
 
-def IntParser(size: int, byteorder: Literal["little", "big"], signed: bool):
+def IntParser(
+    size: int, byteorder: Literal["little", "big"], signed: bool
+):  # pylint: disable=invalid-name
+    """Creates a parser instance that interprets bytes as an integer format
+
+    Args:
+        size: The number of bytes in the integer format
+        byteorder: The endianness of the integer format
+        signed: Whether the interger is signed
+
+    Returns:
+        A parser instances
+    """
     return Translator(
         Bytes(size),
         lambda data: int.from_bytes(data, byteorder, signed=signed),
@@ -93,7 +115,17 @@ UInt32B = IntParser(4, "big", signed=False)
 UInt16B = IntParser(2, "big", signed=False)
 
 
-def DeStructor(fmt: str, backup_label: str | None = None):
+def DeStructor(
+    fmt: str, backup_label: str | None = None
+):  # pylint: disable=invalid-name
+    """Creates a parser instance that interprets a number of bytes using a struct format string
+
+    Args:
+        backup_label: What the parser output is labeled in absence of a label
+
+    Returns:
+        A parser instances
+    """
     return Translator(
         Bytes(struct.calcsize(fmt)),
         lambda data: struct.unpack(fmt, data)[0],
@@ -110,6 +142,8 @@ UuidB = Translator(Bytes(16), lambda data: uuid.UUID(bytes=data), "UUID")
 
 
 class Const(Modifier):
+    """Fails parsing if the contained parser's output is not a fixed value"""
+
     def __init__(self, value: Any, parser: Parser | None = None) -> None:
         if parser is None:
             if isinstance(value, bool):
@@ -135,7 +169,10 @@ class Const(Modifier):
         return decoded_data
 
 
-def BitWordConst(value: BitwiseBytes | bytes | int, bit_length: int | None = None):
+def BitWordConst(
+    value: BitwiseBytes | bytes | int, bit_length: int | None = None
+):  # pylint: disable=invalid-name
+    """A convenience class for generating arbitrary length bit constants"""
     if isinstance(value, BitwiseBytes):
         if bit_length is not None:
             v = value[0:bit_length]

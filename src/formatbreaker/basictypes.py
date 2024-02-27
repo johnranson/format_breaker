@@ -27,8 +27,8 @@ Failure = FailureParser()
 class ByteParser(Parser):
     """Reads a single byte from the data"""
 
-    _default_backup_label: ClassVar[str | None] = "Byte"
-    _default_addr_type = AddrType.BYTE
+    _default_backup_label: ClassVar[str] = "Byte"
+    _default_addr_type: ClassVar[AddrType] = AddrType.BYTE
 
     @override
     def read(self, data: DataManager, contexts: Contexts) -> bytes:
@@ -50,8 +50,7 @@ Byte = ByteParser()
 class Bytes(Parser):
     """Reads a number of bytes from the data"""
 
-    _default_backup_label: ClassVar[str | None] = "Bytes"
-    _default_addr_type = AddrType.BYTE
+    _default_backup_label: ClassVar[str] = "Bytes"
 
     @override
     def __init__(self, byte_length: int) -> None:
@@ -83,8 +82,7 @@ class VarBytes(Parser):
     """Reads a number of bytes from the data with length dynamically
     defined by another field in the data"""
 
-    _default_backup_label: ClassVar[str | None] = "VarBytes"
-    _default_addr_type = AddrType.BYTE
+    _default_backup_label: ClassVar[str] = "VarBytes"
 
     @override
     def __init__(
@@ -124,8 +122,6 @@ class VarBytes(Parser):
 class PadToAddress(Parser):
     """Generates a spacer during parsing to a specific address"""
 
-    _default_addr_type = AddrType.BYTE
-
     def __call__(self, name: str | None = None, *, addr: int | None = None) -> Parser:
         raise NotImplementedError
 
@@ -146,8 +142,7 @@ class PadToAddress(Parser):
 class RemnantParser(Parser):
     """Reads all remainging bytes in the data"""
 
-    _default_backup_label: ClassVar[str | None] = "Remnant"
-    _default_addr_type = AddrType.BYTE
+    _default_backup_label: ClassVar[str] = "Remnant"
 
     @override
     def read(self, data: DataManager, contexts: Contexts) -> bytes:
@@ -174,8 +169,8 @@ Remnant = RemnantParser()
 class BitParser(Parser):
     """Reads a single byte from the data"""
 
-    _default_backup_label: ClassVar[str | None] = "Bit"
-    _default_addr_type = AddrType.BIT
+    _default_backup_label: ClassVar[str] = "Bit"
+    _default_addr_type: ClassVar[AddrType] = AddrType.BIT
 
     @override
     def read(self, data: DataManager, contexts: Contexts) -> bool:
@@ -201,8 +196,8 @@ class BitWord(Parser):
     """Reads a number of bits from the data"""
 
     _bit_length: int
-    _default_backup_label: ClassVar[str | None] = "BitWord"
-    _default_addr_type = AddrType.BIT
+    _default_backup_label: ClassVar[str] = "BitWord"
+    _default_addr_type: ClassVar[AddrType] = AddrType.BIT
 
     @override
     def __init__(self, bit_length: int) -> None:
