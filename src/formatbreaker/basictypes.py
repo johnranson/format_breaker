@@ -7,7 +7,7 @@ by only implementing __init__ and _decode, it should not go here.
 
 from __future__ import annotations
 from typing import override, ClassVar, Any
-from formatbreaker.core import Parser, Contexts, Success, ParseResult
+from formatbreaker.core import Parser, Contexts, Success, ParseResult, get_from_contexts
 from formatbreaker.datasource import DataManager, AddrType
 from formatbreaker.exceptions import FBError
 from formatbreaker.util import validate_address_or_length
@@ -53,13 +53,14 @@ class Bytes(Parser):
     _default_backup_label: ClassVar[str] = "Bytes"
 
     @override
-    def __init__(self, byte_length: int) -> None:
+    def __init__(self, byte_length: int | str | tuple) -> None:
         """
         Args:
             byte_length:The length to read in bytes, when parsing.
             **kwargs: Arguments to be passed to the superclass constructor
         """
-        validate_address_or_length(byte_length, 1)
+        if isinstance(byte_length, int):
+            validate_address_or_length(byte_length, 1)
         self._byte_length = byte_length
         super().__init__()
 
@@ -74,8 +75,16 @@ class Bytes(Parser):
                 same containing Block
             addr: The bit or byte address in `data` where the bytes to be parsed lie.
         """
+        if isinstance(self._byte_length, int):
+            length = self._byte_length
+        else:
+            length = get_from_contexts(contexts, self._byte_length)
+            if not isinstance(length, int):
+                raise TypeError
+        if length < 1:
+            raise ValueError
 
-        return data.read_bytes(self._byte_length)
+        return data.read_bytes(length)
 
 
 class VarBytes(Parser):
@@ -137,6 +146,33 @@ class PadToAddress(Parser):
     def read(self, *args: Any, **kwargs: Any) -> type[ParseResult]:
         # pylint: disable=unused-argument
         return Success
+
+
+class EndParser(Parser):
+    """Raises an error if there is more data"""
+    @override
+    def read(self, data: DataManager, contexts: Contexts) -> type[ParseResult]:
+        """Reads all data from `addr` to the end of `data` and stores the
+        data in an entry in `context`
+
+        Args:
+            data: Data being parsed
+            context: Where results are stored including prior results in the
+                same containing Block
+            addr: The bit or byte address in `data` where the bytes to be parsed lie.
+
+        Returns:
+            The length of `data`
+        """
+        test = None
+        with data.make_child(relative=True, addr_type=AddrType.PARENT, revertible=True):
+            test = data.read_bytes(1)
+        if test is not None:
+            raise FBError
+        return Success
+
+
+End = EndParser()
 
 
 class RemnantParser(Parser):

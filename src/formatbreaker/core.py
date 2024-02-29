@@ -564,9 +564,10 @@ class Repeat(Modifier):
 
     __slots__ = ["_repeat_qty"]
 
-    def __init__(self, parser: Parser, repeat_qty: int | str) -> None:
+    def __init__(self, parser: Parser, repeat_qty: int | str | tuple) -> None:
         super().__init__(parser)
-        validate_address_or_length(repeat_qty, 1)
+        if isinstance(repeat_qty, int):
+            validate_address_or_length(repeat_qty, 1)
         self._repeat_qty = repeat_qty
 
     @override
@@ -584,11 +585,13 @@ class Repeat(Modifier):
             addr: The bit or byte address in `data` where the Data being parsed lies.
         """
 
-        if isinstance(self._repeat_qty, str):
-            reps = get_from_contexts(contexts, self._repeat_qty)
         if isinstance(self._repeat_qty, int):
             reps = self._repeat_qty
         else:
+            reps = get_from_contexts(contexts, self._repeat_qty)
+            if not isinstance(reps, int):
+                raise TypeError
+        if reps < 1:
             raise ValueError
 
         results = contexts[0].new_child()
@@ -619,9 +622,10 @@ class Array(Modifier):
 
     __slots__ = ["_repeat_qty"]
 
-    def __init__(self, parser: Parser, repeat_qty: int | str) -> None:
+    def __init__(self, parser: Parser, repeat_qty: int | str | tuple) -> None:
         super().__init__(parser)
-        validate_address_or_length(repeat_qty)
+        if isinstance(repeat_qty, int):
+            validate_address_or_length(repeat_qty, 1)
         self._repeat_qty = repeat_qty
 
     @override
@@ -639,11 +643,13 @@ class Array(Modifier):
             addr: The bit or byte address in `data` where the Data being parsed lies.
         """
 
-        if isinstance(self._repeat_qty, str):
-            reps = get_from_contexts(contexts, self._repeat_qty)
         if isinstance(self._repeat_qty, int):
             reps = self._repeat_qty
         else:
+            reps = get_from_contexts(contexts, self._repeat_qty)
+            if not isinstance(reps, int):
+                raise TypeError
+        if reps < 1:
             raise ValueError
 
         results: list[Any] = []

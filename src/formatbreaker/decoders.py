@@ -9,7 +9,7 @@ from typing import override, Any, Literal, ClassVar
 import struct
 import uuid
 from formatbreaker.basictypes import Byte, Bytes, BitWord, Bit
-from formatbreaker.core import Modifier, Parser, Translator
+from formatbreaker.core import Modifier, Parser, Translator, Block
 from formatbreaker.exceptions import FBError
 from formatbreaker.bitwisebytes import BitwiseBytes
 
@@ -189,3 +189,27 @@ def BitWordConst(
 
 BitOne = Const(True)
 BitZero = Const(False)
+
+
+class PascalString(Modifier):
+    """A class which represents a PascalString"""
+
+    def __init__(self, numberparser: Parser, fmt: str | None) -> None:
+        base_parser = Block(numberparser >> "num", Bytes("num") >> "raw_bytes")
+        super().__init__(base_parser, "String")
+        self._fmt = fmt
+
+    @override
+    def translate(self, data: dict) -> int:
+        """Decodes the bits into an unsigned integer
+
+        Args:
+            data: A string of bits
+
+        Returns:
+            The bits converted to an unsigned integer
+        """
+        if self._fmt is None:
+            return data["raw_bytes"]
+        return data["raw_bytes"].decode(self._fmt)
+

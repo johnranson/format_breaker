@@ -10,6 +10,7 @@ from formatbreaker.basictypes import (
     Remnant,
     Bit,
     BitWord,
+    End
 )
 
 
@@ -22,6 +23,7 @@ __all__ = [
     "Section",
     "Optional",
     "Byte",
+    "End",
     "Bytes",
     "VarBytes",
     "PadToAddress",
