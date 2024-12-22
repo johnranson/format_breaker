@@ -8,6 +8,7 @@ from __future__ import annotations
 from typing import override, Any, Literal, ClassVar
 import struct
 import uuid
+from enum import Enum
 from formatbreaker.basictypes import Byte, Bytes, BitWord, Bit
 from formatbreaker.core import Modifier, Parser, Translator, Block
 from formatbreaker.exceptions import FBError
@@ -49,7 +50,9 @@ def ByteFlag(true_value: Any = None) -> Parser:  # pylint: disable=invalid-name
     Returns:
         A parser instance
     """
-    return Flag(Byte, b"\0", true_value)
+    if isinstance(true_value, bytes):
+        return Flag(Byte, b"\0", true_value)
+    return Flag(Byte, b"\0", [true_value])
 
 
 class BitFlags(BitWord):
@@ -213,3 +216,37 @@ class PascalString(Modifier):
             return data["raw_bytes"]
         return data["raw_bytes"].decode(self._fmt)
 
+
+class PaddedString(Modifier):
+    """A class which represents a padded string"""
+
+    def __init__(self, byte_length: int | str | tuple, fmt: str | None) -> None:
+        base_parser = Bytes(byte_length)
+        super().__init__(base_parser, "String")
+        self._fmt = fmt
+
+    @override
+    def translate(self, data: dict) -> int:
+        """Decodes the bits into an unsigned integer
+
+        Args:
+            data: A string of bits
+
+        Returns:
+            The bits converted to an unsigned integer
+        """
+        if self._fmt is None:
+            return data["raw_bytes"]
+        return data["raw_bytes"].decode(self._fmt)
+    b'\0'.decode()
+
+
+
+class EnumTranslator(Modifier):
+    def __init__(self, parser: Parser, fmt: type[Enum]) -> None:
+        super().__init__(parser, "Enum")
+        self._fmt = fmt
+
+    @override
+    def translate(self, data: Any):
+        return self._fmt(data)

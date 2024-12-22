@@ -1,7 +1,7 @@
 """A package for parsing binary data"""
 from formatbreaker.datasource import AddrType
 from formatbreaker.exceptions import FBError, FBNoDataError
-from formatbreaker.core import Parser, Section, Block, Optional
+from formatbreaker.core import Parser, Section, Block, Optional, IfValue
 from formatbreaker.basictypes import (
     Byte,
     Bytes,
@@ -10,7 +10,7 @@ from formatbreaker.basictypes import (
     Remnant,
     Bit,
     BitWord,
-    End
+    End,
 )
 
 
@@ -30,4 +30,5 @@ __all__ = [
     "Remnant",
     "Bit",
     "BitWord",
+    "IfValue"
 ]

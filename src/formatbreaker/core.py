@@ -670,3 +670,22 @@ class Array(Modifier):
                 elif result is not None:
                     results.append(result)
         return results
+
+
+class IfValue(Modifier):
+    __slots__ = ("_key", "_value")
+
+    def __init__(self, parser: Parser, key: str, value: Any) -> None:
+        super().__init__(parser)
+        self._key = key
+        self._value = value
+
+    @override
+    def read(
+        self,
+        data: DataManager,
+        contexts: Contexts,
+    ) -> Any:
+        if get_from_contexts(contexts, self._key) == self._value:
+            return super().read(data, contexts)
+        return Success
